@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from peewee import fn
 import dateparser
 from bs4 import BeautifulSoup
-from gtts import gTTS
+# from gtts import gTTS
 import pandas as pd
 
 import requests

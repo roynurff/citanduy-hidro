@@ -105,6 +105,8 @@ def show_month(id, tahun, bulan):
             pass
         wlevels = reduce((lambda x, y: x + y), [json.loads(r.raw) for r in rds])
         df_wlevel = pd.DataFrame(wlevels)
+        # Convert wlevel to numeric to avoid mixed type errors
+        df_wlevel['wlevel'] = pd.to_numeric(df_wlevel['wlevel'], errors='coerce')
         df_wlevel.set_index('sampling', inplace=True)
         df_wlevel.index = pd.to_datetime(df_wlevel.index)
         desc = df_wlevel.describe()

@@ -200,22 +200,41 @@ def index():
                 if k in ('07', '12', '17'):
                     setattr(p, 'm_tma_' + k, '{:.1f}'.format(float(v)))
         if p.id in rdailies:
-            p.source = rdailies[p.id].source
-            tma = rdailies[p.id]._tma() if rdailies[p.id].pos_id == p.id else {}
-            for k, v in tma.items():
-                jam = str(k).zfill(2)
-                setattr(p, 'tma_' + jam, '{:.1f}'.format(float(v.get('wlevel'))))
-            raw = json.loads(rdailies[p.id].raw)[-1]
-            p.latest_sampling = raw.get('sampling')
-            p.latest_tma = None
-            if raw.get('wlevel'):
-                p.latest_tma = p.source == 'SA' and int(raw.get('wlevel')) or int(raw.get('wlevel') * 100)
-            if p.id in l_debits:
-                ld = l_debits[p.id]
+            try:
+                p.source = rdailies[p.id].source
+                tma = rdailies[p.id]._tma() if rdailies[p.id].pos_id == p.id else {}
+                for k, v in tma.items():
+                    jam = str(k).zfill(2)
+                    setattr(p, 'tma_' + jam, '{:.1f}'.format(float(v.get('wlevel'))))
                 raw = json.loads(rdailies[p.id].raw)[-1]
                 p.latest_sampling = raw.get('sampling')
-                p.latest_tma = p.source == 'SA' and int(raw.get('wlevel')) or int(raw.get('wlevel') * 100)
-                p.debit = ld.c_ * ((p.latest_tma * 0.01) + ld.a_) ** ld.b_
+                p.latest_tma = None
+                if raw.get('wlevel'):
+                    try:
+                        wlevel_val = float(raw.get('wlevel'))
+                        if p.source == 'SA':
+                            p.latest_tma = int(wlevel_val)
+                        else:
+                            p.latest_tma = int(wlevel_val * 100)
+                    except (ValueError, TypeError):
+                        p.latest_tma = None
+                if p.id in l_debits:
+                    try:
+                        ld = l_debits[p.id]
+                        raw = json.loads(rdailies[p.id].raw)[-1]
+                        p.latest_sampling = raw.get('sampling')
+                        if raw.get('wlevel'):
+                            wlevel_val = float(raw.get('wlevel'))
+                            if p.source == 'SA':
+                                p.latest_tma = int(wlevel_val)
+                            else:
+                                p.latest_tma = int(wlevel_val * 100)
+                            p.debit = ld.c_ * ((p.latest_tma * 0.01) + ld.a_) ** ld.b_
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        p.debit = None
+            except Exception as e:
+                # Skip this pos if any error occurs
+                print(f'Error processing PDA {p.id}: {str(e)}')
     sungai = set([p.sungai for p in pdas])
     ruas = {}
     for s in sungai:

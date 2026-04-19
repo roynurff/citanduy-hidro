@@ -629,6 +629,7 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
     
     
     @app.route('/login', methods=['GET', 'POST'])
+    @limiter.exempt
     def login():
         if current_user.is_authenticated:
             return redirect(url_for('homepage'))

@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify, abort
 from peewee import fn
 import datetime
-from app.models import ManualDaily, Pos
+import json
+from app.models import ManualDaily, Pos, RDaily, VENDORS
+from app import get_sampling
 
 bp = Blueprint('rainfall', __name__, url_prefix='/api')
 
@@ -298,3 +300,203 @@ def get_manual_rainfall_stats():
     }
     
     return jsonify(response)
+
+
+@bp.route('/rainfall/telemetry')
+def get_telemetry_rainfall():
+    """
+    GET /api/rainfall/telemetry
+
+    Endpoint telemetri hujan tanpa limiter.
+    Optional query param:
+    - s: sampling date (format dari get_sampling)
+    """
+    (_s, s, s_) = get_sampling(request.args.get('s', None))
+
+    rdaily = RDaily.select().where(RDaily.sampling == s.strftime('%Y-%m-%d'))
+    mdaily = {
+        m.pos_id: m
+        for m in ManualDaily.select().where(ManualDaily.sampling == s.strftime('%Y-%m-%d'))
+    }
+
+    items = []
+    for r in rdaily:
+        rain_data = r._rain()
+        if not rain_data:
+            continue
+        if not r.pos:
+            continue
+        if r.pos.tipe not in ('1', '3'):
+            continue
+
+        manual = mdaily.get(r.pos.id).ch if mdaily.get(r.pos.id) else None
+
+        row = {
+            'pos': {
+                'nama': r.pos.nama if r.pos else r.nama,
+                'id': r.pos.id if r.pos else None,
+                'latlon': r.pos.ll if r.pos else None,
+                'elevasi': r.pos.elevasi if r.pos else None,
+                'kabupaten': r.pos.kabupaten if r.pos else None,
+                'kecamatan': r.pos.kecamatan if r.pos else None,
+                'desa': r.pos.desa if r.pos else None,
+            },
+            'vendor': VENDORS.get(r.source),
+            'telemetri': {
+                'count24': rain_data.get('count24'),
+                'rain24': rain_data.get('rain24'),
+                'rain': rain_data.get('hourly'),
+            },
+            'manual': manual,
+        }
+        items.append(row)
+
+    return jsonify({
+        'ok': True,
+        'meta': {
+            'description': 'Telemetri hujan pada pos hujan dan klimat (tanpa limiter)',
+            'sampling': s.strftime('%Y-%m-%d')
+        },
+        'items': items
+    })
+
+
+@bp.route('/wlevel/telemetry')
+def get_telemetry_wlevel():
+    """
+    GET /api/wlevel/telemetry
+
+    Endpoint telemetri tinggi muka air tanpa limiter.
+    Optional query param:
+    - s: sampling date (format dari get_sampling)
+      - jika diisi: mode historis per tanggal
+      - jika kosong: mode terbaru
+    """
+    get_newest = not request.args.get('s', None)
+    (_s, s, s_) = get_sampling(request.args.get('s', ''))
+
+    pdas = list(Pos.select().where(Pos.tipe == '2').order_by(Pos.sungai, Pos.elevasi.desc()))
+    pids = [p.id for p in pdas]
+
+    if not get_newest:
+        rd_map = {
+            r.pos_id: r
+            for r in RDaily.select().where(
+                RDaily.sampling == s.strftime('%Y-%m-%d'),
+                RDaily.pos_id.in_(pids)
+            )
+        }
+        md_map = {
+            m.pos_id: m
+            for m in ManualDaily.select().where(
+                ManualDaily.sampling == s.strftime('%Y-%m-%d'),
+                ManualDaily.pos_id.in_(pids)
+            )
+        }
+    else:
+        rd_map = {}
+        md_map = {}
+
+    items = []
+    for p in pdas:
+        if get_newest:
+            rd = p.rdaily_set.order_by(RDaily.sampling.desc()).first()
+            md = p.manualdaily_set.order_by(ManualDaily.sampling.desc()).first()
+        else:
+            rd = rd_map.get(p.id)
+            md = md_map.get(p.id)
+
+        manual = _extract_manual_tma(md)
+        vendor = rd.vendor if rd else None
+
+        t_raw = []
+        if rd and rd.raw:
+            try:
+                raw_data = json.loads(rd.raw)
+                if rd.source in ('SB', 'SC'):
+                    t_raw = [
+                        {
+                            'sampling': item.get('sampling'),
+                            'wlevel': item.get('wlevel') * 100 if item.get('wlevel') is not None else None
+                        }
+                        for item in raw_data
+                    ]
+                else:
+                    t_raw = raw_data
+            except (json.JSONDecodeError, TypeError):
+                t_raw = []
+
+        if get_newest:
+            latest = t_raw[-1] if t_raw else {}
+            telemetri = {
+                'latest': {
+                    'sampling': latest.get('sampling'),
+                    'wlevel': latest.get('wlevel')
+                },
+                'raw': [
+                    {
+                        'sampling': item.get('sampling'),
+                        'wlevel': item.get('wlevel')
+                    }
+                    for item in t_raw
+                    if item.get('wlevel') is not None
+                ]
+            }
+        else:
+            telemetri = [
+                {
+                    'sampling': item.get('sampling'),
+                    'wlevel': item.get('wlevel')
+                }
+                for item in t_raw
+                if item.get('wlevel') is not None
+            ]
+
+        items.append({
+            'pos': {
+                'nama': p.nama,
+                'latlon': p.ll,
+                'id': p.id,
+                'sungai': p.sungai,
+                'elevasi': p.elevasi,
+                'sh': p.sh,
+                'sk': p.sk,
+                'sm': p.sm,
+                'kabupaten': p.kabupaten,
+                'kecamatan': p.kecamatan,
+                'desa': p.desa,
+            },
+            'telemetri': telemetri,
+            'vendor': vendor,
+            'manual': manual
+        })
+
+    return jsonify({
+        'ok': True,
+        'meta': {
+            'description': 'Telemetri tinggi muka air semua Pos Duga Air (tanpa limiter)',
+            'sampling': s.strftime('%Y-%m-%d'),
+            'mode': 'latest' if get_newest else 'historical'
+        },
+        'items': items
+    })
+
+
+def _extract_manual_tma(manual_record):
+    if not manual_record:
+        return []
+
+    try:
+        tma_data = json.loads(manual_record.tma)
+        manual_readings = []
+
+        for hour in ('07', '12', '17'):
+            if hour in tma_data:
+                manual_readings.append({
+                    'sampling': manual_record.sampling.strftime('%Y-%m-%dT') + hour,
+                    'tma': tma_data[hour]
+                })
+
+        return manual_readings
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return []

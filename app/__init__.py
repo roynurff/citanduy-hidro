@@ -29,7 +29,7 @@ csrf = CSRFProtect()
 
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["288 per day", "12 per hour"],
+    default_limits=["1440 per day", "60 per hour"],
     storage_uri="memory://",
 )
 
@@ -629,7 +629,7 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
     
     
     @app.route('/login', methods=['GET', 'POST'])
-    @limiter.exempt
+    @limiter.limit("1 per 5 minute")
     def login():
         if current_user.is_authenticated:
             return redirect(url_for('homepage'))

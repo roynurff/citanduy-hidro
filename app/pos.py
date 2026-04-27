@@ -61,11 +61,12 @@ def add_data_ka():
             flash('File Hasil Uji Lab belum diisi')
             return redirect(request.url)
         fname = secure_filename(file.filename or '')
-        doc_path = f"{current_app.config['KUALITAS_AIR_FOLDER']}/{sampling.strftime('_%Y/_%m')}"
-        if not os.path.isdir(doc_path):
-            os.makedirs(doc_path)
-        doc_path += f"/{fname}"
-        file.save('app/' + doc_path)
+        # Create directory path - consistent for both makedirs and file.save
+        rel_dir = f"{current_app.config['KUALITAS_AIR_FOLDER']}/{sampling.strftime('_%Y/_%m')}"
+        full_dir = os.path.join('app', rel_dir)
+        os.makedirs(full_dir, exist_ok=True)
+        full_file_path = os.path.join(full_dir, fname)
+        file.save(full_file_path)
         flash(f'File {fname} uploaded successfully!')
         ret = {'pos': form.pos.data, 
                'sampling': form.sampling.data, 

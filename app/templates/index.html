@@ -25,148 +25,133 @@
   </script>
   {% endif %}
   <body x-data="{ open: false }">
-    <div style="background-image: url(/static/img/bluetriangle.jpg); background-size: repeat;">
-      {% if current_user.is_authenticated %}
-      <div class="dropdown">
-        <button 
-          class="btn btn-outline-light float-end mt-2 me-2" 
-          type="button" 
-          data-bs-toggle="dropdown"
-        ><i
-        class="bi bi-person-fill {% if current_user.is_admin %}text-danger {% endif %}me-1"
-      ></i> {{ current_user.username }}</button>
-        <ul
-        class="dropdown-menu dropdown-menu-end"
-        aria-labelledby="dropdownMenuLink"
-      >
-        {% if current_user.is_admin %}
-
-        <li>
-          <a href="/pos/manual" class="dropdown-item navlink"
-            ><i class="bi bi-pencil me-2 text-danger"></i> Data Manual</a
-          >
-          <a href="/rpos" class="dropdown-item navlink"
-            ><i class="bi bi-cpu me-2 text-danger"></i> Data Logger</a
-          >
-          <a href="/pos/ka" class="dropdown-item navlink"
-            ><i class="bi bi-card-checklist me-2 text-danger"></i> Data Kualitas Air</a
-          >
-          <a href="/pub/adm" class="dropdown-item navlink"
-            ><i class="bi bi-card-checklist me-2 text-danger"></i> Admin Publikasi</a
-          >
-          <hr class="dropdown-divider" />
-          <a href="/pos/manual/kinerja" class="dropdown-item navlink"
-            ><i class="bi bi-clipboard2-pulse me-2 text-danger"></i> Kinerja Data Manual</a
-          >
-          <a href="/rdaily" class="dropdown-item navlink"
-            ><i class="bi bi-graph-up me-2 text-danger"></i> Kinerja Telemetri</a
-          >
-        </li>
-        <li>
-          <hr class="dropdown-divider" />
-        </li>
-        <a href="/download" class="dropdown-item navlink"
-        ><i class="bi bi-cloud-download me-2 text-danger"></i> Download</a
-      >
-      <li>
-        <hr class="dropdown-divider" />
-      </li>
-    <a href="/note" class="dropdown-item navlink"
-      ><i class="bi bi-book-half me-2 text-danger"></i> LogBook</a
-    >
-  <li>
-          <hr class="dropdown-divider" />
-        </li>
-        <li>
-          <a href="/user" class="dropdown-item navlink"
-            ><i class="bi bi-key me-2 text-danger"></i> User</a
-          >
-        </li>
-        <li>
-          <a href="/petugas" class="dropdown-item navlink"
-            ><i class="bi bi-person me-2 text-danger"></i> Petugas Pos</a
-          >
-        </li>
-        <li>
-          <a href="/pos" class="dropdown-item navlink"
-            ><i class="bi bi-geo-alt me-2 text-danger"></i> Pos Hidrologi</a
-          >
-        </li>
-        <li>
-          <a href="/pos/da" class="dropdown-item navlink"
-            ><i class="bi bi-water me-2"></i> Pos Duga Air</a>
-        </li>
-        {% else %}
-        <li>
-          <a href="/me" class="dropdown-item navlink"
-            ><i class="bi bi-person me-2 text-danger"></i> Profile</a
-          >
-        </li>
-        {% endif %}
-        <li>
-          <hr class="dropdown-divider" />
-        </li>
-        <li>
-          <a href="/logout" class="dropdown-item navlink"
-            ><i class="bi bi-power text-danger me-2"></i> Logout</a
-          >
-        </li>
-      </ul>
-      </div>
-      {% else %}
-      <a href="/login" title="login" class="btn btn-outline-light float-end mt-2 me-2"><i class="bi bi-key"></i> Login</a>
-      {% endif %}
-      <div class="px-4 py-5 text-center">
+    <div class="min-vh-100 d-flex flex-column" style="background-image: url('/static/img/manganti.webp'); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; position: relative;">
+      
+      <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.487);"></div>
+      
+      <div class="d-flex flex-column flex-grow-1" style="position: relative; z-index: 1;">
         
-        <img class="d-block mx-auto mb-5 img-fluid" src="/static/img/cty-logo.png" width="180" height="129" alt="BBWS Citanduy">
-        <div class="container-fluid mt-5">
-          <div class="row justify-content-center">
-            <div class="col">
-              <p class="text-light fw-lighter fs-4">Hari ini, {{ ctx.today.strftime('%d %b %Y') }} &bullet; <span x-text="new Date().getHours()"></span></p>
-            </div>
+        <div class="w-100">
+          {% if current_user.is_authenticated %}
+          <div class="dropdown">
+            <button class="btn btn-outline-light float-end mt-3 me-3" type="button" data-bs-toggle="dropdown">
+              <i class="bi bi-person-fill {% if current_user.is_admin %}text-danger {% endif %}me-1"></i> {{ current_user.username }}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuLink">
+              {% if current_user.is_admin %}
+              <li>
+                <a href="/pos/manual" class="dropdown-item navlink"><i class="bi bi-pencil me-2 text-danger"></i> Data Manual</a>
+                <a href="/rpos" class="dropdown-item navlink"><i class="bi bi-cpu me-2 text-danger"></i> Data Logger</a>
+                <a href="/pos/ka" class="dropdown-item navlink"><i class="bi bi-card-checklist me-2 text-danger"></i> Data Kualitas Air</a>
+                <a href="/pub/adm" class="dropdown-item navlink"><i class="bi bi-card-checklist me-2 text-danger"></i> Admin Publikasi</a>
+                <hr class="dropdown-divider" />
+                <a href="/pos/manual/kinerja" class="dropdown-item navlink"><i class="bi bi-clipboard2-pulse me-2 text-danger"></i> Kinerja Data Manual</a>
+                <a href="/rdaily" class="dropdown-item navlink"><i class="bi bi-graph-up me-2 text-danger"></i> Kinerja Telemetri</a>
+              </li>
+              <li><hr class="dropdown-divider" /></li>
+              <li><a href="/download" class="dropdown-item navlink"><i class="bi bi-cloud-download me-2 text-danger"></i> Download</a></li>
+              <li><hr class="dropdown-divider" /></li>
+              <li><a href="/note" class="dropdown-item navlink"><i class="bi bi-book-half me-2 text-danger"></i> LogBook</a></li>
+              <li><hr class="dropdown-divider" /></li>
+              <li><a href="/user" class="dropdown-item navlink"><i class="bi bi-key me-2 text-danger"></i> User</a></li>
+              <li><a href="/petugas" class="dropdown-item navlink"><i class="bi bi-person me-2 text-danger"></i> Petugas Pos</a></li>
+              <li><a href="/pos" class="dropdown-item navlink"><i class="bi bi-geo-alt me-2 text-danger"></i> Pos Hidrologi</a></li>
+              <li><a href="/pos/da" class="dropdown-item navlink"><i class="bi bi-water me-2"></i> Pos Duga Air</a></li>
+              {% else %}
+              <li><a href="/me" class="dropdown-item navlink"><i class="bi bi-person me-2 text-danger"></i> Profile</a></li>
+              {% endif %}
+              <li><hr class="dropdown-divider" /></li>
+              <li><a href="/logout" class="dropdown-item navlink"><i class="bi bi-power text-danger me-2"></i> Logout</a></li>
+            </ul>
           </div>
-          <div class="row justify-content-center mt-5">
-            <div class="col-md-3 col-sm-12 mt-3 mt-md-0">
-              <div class="card text-bg-light text-start">
-                <div class="card-body">
-                  <h5>Status Hujan</h5>
-                  <table class="table mt-3" id="rain-data">
-                  </table>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3 col-sm-12 mt-3 mt-md-0">
-              <div class="card text-bg-light text-start">
-                <div class="card-body">
-                  <h5>Status Muka Air</h5>
-                  <table class="table mt-3" id="wlevel-data">
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        <!--h1 class="display-5 pt-5 pb-3 fw-bold text-white">BBWS Citanduy</h1-->
-        <div class="col-lg-6 mx-auto">
-          <!--p class="lead mb-5 text-light">Data Curah hujan dan Tinggi Muka Air</p-->
-          <!--div class="d-grid gap-2 mb-5 d-sm-flex justify-content-sm-center">
-            <a href="/map/hujan" type="button" class="btn btn-warning btn-lg px-4 gap-5 me-4"><i class="bi bi-map me-1"></i> Peta Hujan</a>
-            <a href="/map/sungai" type="button" class="btn btn-primary btn-lg px-4"><i class="bi bi-map me-1"></i> Peta Sungai</a>
-          </div-->
-          <!--p><i class="bi bi-cloud-rain text-light me-2"></i> <a href="/pch" class="link-light me-4">Data Curah Hujan</a>  <i class="bi bi-water text-light me-2"></i>&nbsp;<a href="/pda" class="link-light">Data Muka Air</a></p-->
+          {% else %}
+          <a href="/login" title="login" class="btn btn-outline-light float-end mt-3 me-3"><i class="bi bi-key"></i> Login</a>
+          {% endif %}
         </div>
+
+        <div class="px-4 py-5 text-center flex-grow-1 d-flex flex-column justify-content-center align-items-center position-relative" style="padding-bottom: 40vh !important; z-index: 5;">
+  
+          <img class="d-block mx-auto mb-4 img-fluid" src="/static/img/cty-logo.png" width="200" height="160" alt="SIHKA">
+          <h1 class="display-6 fw-bold text-white mb-3">Sistem Informasi Hidrologi dan Kualitas Air</h1>
+
+          <p class="text-light fs-5 mt-3 mb-5">
+            Hari ini, {{ ctx.today.strftime('%d %b %Y') }} &bullet; 
+            <span x-data="{ time: new Date() }" 
+                  x-init="setInterval(() => time = new Date(), 1000)" 
+                  x-text="String(time.getHours()).padStart(2, '0') + ':' + String(time.getMinutes()).padStart(2, '0')">
+            </span>
+          </p>
+          
+          <div class="row justify-content-center g-4 w-100" style="max-width: 900px;">
+            
+            <div class="col-md-6">
+              <div class="card text-bg-light h-100 shadow-sm border-0">
+                <div class="card-body">
+                  <h5 class="card-title mb-3 fw-normal"><i class="bi bi-cloud-rain me-2 text-warning"></i>Status Hujan</h5>
+                  <table class="table table-sm" id="rain-data"></table>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="card text-bg-light h-100 shadow-sm border-0">
+                <div class="card-body">
+                  <h5 class="card-title mb-3 fw-normal"><i class="bi bi-water me-2 text-info"></i>Status Muka Air</h5>
+                  <table class="table table-sm" id="wlevel-data"></table>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+          
+        </div>
+        
       </div>
     </div>
-    <div class="px-4 pt-5 text-center border-bottom min-vh-100" style="background-image: url(/static/img/manganti.webp); background-size: cover; background-repeat: no-repeat">
-      <h1 class="display-4 fw-lighter text-grey" style="text-shadow: 0 0 6px #ffffff;"></h1>
-      <div class="col-lg-6 mx-auto">
+
+    <!-- Footer -->
+    <footer class="text-light pt-4 pb-4 mt-auto" style="background-color: rgba(1, 1, 24, 0.965);">
+      <div class="container">
+        
+        <div class="d-flex align-items-center mb-4 gap-3">
+          <img src="/static/img/pupr.png" alt="PUPR" width="48" height="48">
+          <img src="/static/img/cty-logo.png" alt="BBWS Citanduy" width="64" height="48">
+        </div>
+
+        <div class="row mb-3">
+
+          <div class="col-lg-6 mb-4 mb-lg-0">
+            <h6 class="fw-bold mb-1">Alamat</h6>
+            <p class="text-secondary mb-0" style="max-width: 400px;">
+              Kantor Balai Besar Wilayah Sungai (BBWS) Citanduy
+              Jl. Prof. Ir. Sutami No. 1, Karangpanimbal, Purwaharja<br>
+              Kota Banjar, Provinsi Jawa Barat - 46332
+            </p>
+          </div>
+
+          <div class="col-lg-6 d-flex justify-content-lg-end gap-4 gap-md-5">
+            <div>
+              <h6 class="fw-bold mb-1">Email</h6>
+              <a href="mailto:sihka@gmail.com" class="text-secondary text-decoration-none">
+                hidrologicitanduy@gmail.com
+              </a>
+            </div>
+          </div>
+          
+        </div>
+
+        <hr class="border-secondary my-4">
+
+        <div class="row">
+          <div class="col-12 text-center">
+            <p class="text-light small mb-0">
+              &copy; 2026 - 2027 BBWS Citanduy
+            </p>
+          </div>
+        </div>
+
       </div>
-      </div>
-    </div>    
-    <div class="container-fluid">
-      <footer class="py-3 my-4">
-        <p class="text-center text-body-secondary">© 2024 - 2025 BBWS Citanduy</p>
-      </footer>
-    </div>
+    </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script>
       document.addEventListener('DOMContentLoaded', function() {

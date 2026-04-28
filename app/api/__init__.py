@@ -282,7 +282,8 @@ def _format_pos_data(p):
     }
     
 @bp.route('/rain')
-@limiter.limit("1 per 5 minute")
+@limiter.limit("5 per minute")
+@cache.cached(timeout=300) # Cache for 5 minutes saving
 def rain():
     get_newest = request.args.get('s', None)
     (_s, s, s_) = get_sampling(request.args.get('s', None))

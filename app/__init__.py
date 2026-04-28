@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from peewee import fn
 import dateparser
 from bs4 import BeautifulSoup
-from gtts import gTTS
+# from gtts import gTTS
 import pandas as pd
 
 import requests
@@ -21,11 +21,13 @@ import json
 from typing import Optional
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_caching import Cache
 
 load_dotenv()
 
 db_wrapper = FlaskDB()
 csrf = CSRFProtect()
+cache = Cache(config={'CACHE_TYPE': 'SimpleCache'})
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -213,6 +215,7 @@ def create_app():
     db_wrapper.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
+    cache.init_app(app)
     
     from app.cli import register as register_cli
     
@@ -629,7 +632,7 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
     
     
     @app.route('/login', methods=['GET', 'POST'])
-    @limiter.limit("1 per 5 minute")
+    @limiter.limit("5 per minute")
     def login():
         if current_user.is_authenticated:
             return redirect(url_for('homepage'))

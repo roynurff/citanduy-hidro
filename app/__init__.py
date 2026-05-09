@@ -503,8 +503,9 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                     
                     kolom_target = ['T07', 'T12', 'T17']
                     # df_tele[kolom_target] = df_tele[kolom_target].apply(pd.to_numeric, errors='coerce').astype('Int64')
-                    df_tele[kolom_target] = df_tele[kolom_target].apply(pd.to_numeric, errors='coerce')
-                    df_tele[kolom_target] = df_tele[kolom_target].where(df_tele[kolom_target].notna(), other=pd.NA).astype('Int64')
+                    for col in kolom_target:
+                        df_tele[col] = pd.to_numeric(df_tele[col], errors='coerce').fillna(pd.NA)
+                        df_tele[kolom_target] = df_tele[kolom_target].astype('Int64')
                     
                 df_tele['sampling'] = pd.to_datetime(df_tele['sampling'])
                 df_man['sampling'] = pd.to_datetime(df_man['sampling'])

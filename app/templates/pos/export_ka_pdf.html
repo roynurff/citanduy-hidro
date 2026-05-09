@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<style>
+    @page {
+        size: A4 horizontal;
+        margin: 1.5cm 1cm 1.5cm 1cm;
+    }
+    body {
+        font-family: Arial, sans-serif;
+        font-size: 9pt;
+        color: #000;
+    }
+
+    /* KOP SURAT */
+    .kop {
+        display: flex;
+        align-items: center;
+        border-bottom: 3px solid #000;
+        padding-bottom: 8px;
+        margin-bottom: 12px;
+    }
+    .kop img { width: 70px; margin-right: 12px; }
+    .kop-text { text-align: center; flex: 1; }
+    .kop-text h2 { font-size: 11pt; margin: 0; font-weight: bold; text-transform: uppercase; }
+    .kop-text h3 { font-size: 10pt; margin: 2px 0; font-weight: bold; text-transform: uppercase; }
+    .kop-text p  { font-size: 8pt; margin: 1px 0; }
+
+    /* INFO HEADER */
+    .info-table { width: 100%; margin-bottom: 10px; font-size: 9pt; }
+    .info-table td { padding: 1px 4px; vertical-align: top; }
+    .info-table td:first-child { width: 160px; font-weight: bold; }
+
+    /* JUDUL */
+    .judul {
+        text-align: center;
+        font-weight: bold;
+        font-size: 10pt;
+        margin: 8px 0;
+        text-transform: uppercase;
+    }
+
+    /* TABEL PARAMETER */
+    table.param {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8pt;
+        margin-bottom: 10px;
+    }
+    table.param th {
+        background: #d0d0d0;
+        border: 1px solid #000;
+        padding: 4px 6px;
+        text-align: center;
+        font-weight: bold;
+    }
+    table.param td {
+        border: 1px solid #000;
+        padding: 3px 6px;
+    }
+    table.param tr.summary td {
+        background: #eeeeee;
+        font-weight: bold;
+    }
+    table.param tr.pi-row td {
+        background: #ffd;
+        font-weight: bold;
+        font-size: 9pt;
+    }
+
+    /* STATUS BADGE */
+    /* .status-box {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 3px;
+        font-weight: bold;
+        font-size: 9pt;
+    }
+    .status-memenuhi { background: #d4edda; border: 1px solid #198754; color: #155724; }
+    .status-ringan   { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+    .status-sedang   { background: #ffe5d0; border: 1px solid #fd7e14; color: #7d3a00; }
+    .status-berat    { background: #f8d7da; border: 1px solid #dc3545; color: #721c24; } */
+
+    .footer-note { font-size: 7.5pt; color: #333; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- KOP SURAT -->
+<div class="kop">
+    <img src="{{ request.host_url }}static/img/pupr.png" alt="Logo">
+    <div class="kop-text">
+        <h2>KEMENTERIAN PEKERJAAN UMUM</h2>
+        <h2>DIREKTORAT JENDERAL SUMBER DAYA AIR</h2>
+        <h2>BALAI BESAR WILAYAH SUNGAI CITANDUY</h2>
+        <p>Jl. Prof. Dr. Ir. H. Sutami No. 1, Kota Banjar, Jawa Barat - 46332, Telp. (0265) 741686, e-mail: bbwscitanduy@pu.go.id</p>
+    </div>
+</div>
+
+<!-- JUDUL DOKUMEN -->
+<div class="judul">
+    Penentuan Status Mutu Air Kelas II dengan Metoda Indeks Pencemaran<br>
+    <!-- <span style="font-size:9pt;font-weight:normal;">
+        Periode {{ hu.periode }} — Tahun {{ hu.sampling.year }}
+    </span> -->
+</div>
+
+<!-- INFO LOKASI -->
+<table class="info-table">
+    <tr>
+        <td style="white-space: nowrap">Sungai</td>
+        <td>: {{ hu.sungai or '-' }}</td>
+    </tr>
+    <tr>
+        <td style="white-space: nowrap">Lokasi Titik Pengamatan</td>
+        <td>: {{ hu.lokasi or '-' }}</td>
+        <!-- <td>Lembaga Penguji</td>
+        <td>: {{ hu.lembaga or '-' }}</td> -->
+    </tr>
+    <!-- <tr>
+        <td>Kabupaten/Kota</td>
+        <td>: {{ hu.kota_kabupaten or '-' }}</td>
+        <td>Kelas Baku Mutu</td>
+        <td>: Kelas {{ hu.kelas_baku_mutu }}</td>
+    </tr> -->
+    {% if hu.ll %}
+    {% set ll_parts = hu.ll.split(',') %}
+    <tr>
+        <td style="white-space: nowrap">Posisi Geografis - Lintang - Bujur</td>
+        <td>: {{ ll_parts[0] | trim if ll_parts|length > 0 else '-' }} {{ ll_parts[1] | trim if ll_parts|length > 1 else '-' }}</td>
+        <!-- <td>Posisi Geografis — Lintang</td> -->
+    </tr>
+    <tr>
+        <td style="white-space: nowrap">Tanggal</td>
+        <td>: {{ hu.sampling.strftime('%d %B %Y') }}</td>
+    </tr>
+    {% endif %}
+</table>
+
+<!-- TABEL PARAMETER -->
+<table class="param">
+    <thead>
+        <tr>
+            <th rowspan="2" width="4%">No</th>
+            <th rowspan="2" width="20%">Parameter</th>
+            <th rowspan="2" width="8%">Satuan</th>
+            <th rowspan="2" width="8%">Cᵢ</th>
+            <th rowspan="2" width="8%">Lᵢⱼ</th>
+            <th width="10%">Cᵢ/Lᵢⱼ</th>
+            <th width="10%">(Cᵢ/Lᵢⱼ)baru</th> 
+        </tr>
+        <tr>
+            
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in params %}
+        <tr>
+            <td style="text-align:center">{{ loop.index }}</td>
+            <td>{{ p.name }}</td>
+            <td style="text-align:center">{{ p.satuan }}</td>
+            <td style="text-align:center">{{ p.nilai }}</td>
+            <td style="text-align:center">{{ p.bm_max if p.bm_max else '-' }}</td>
+            <td style="text-align:center">{{ p.ci_ci_max if p.ci_ci_max else '-' }}</td>
+            <td style="text-align:center">{{ p.ci_baru if p.ci_baru is not none else '-' }}</td>
+        </tr>
+        {% endfor %}
+
+        <!-- Baris ringkasan -->
+        <tr class="summary">
+            <td colspan="6" style="text-align:right">Nilai Maksimum (Cᵢ/Lᵢⱼ)ᴍ</td>
+            <td style="text-align:center">{{ max_val }}</td>
+        </tr>
+        <tr class="summary">
+            <td colspan="6" style="text-align:right">Nilai Rata-rata (Cᵢ/Lᵢⱼ)ʀ</td>
+            <td style="text-align:center">{{ avg_val }}</td>
+        </tr>
+        <tr class="pi-row">
+            <td colspan="6" style="text-align:right">
+                Nilai PIⱼ
+            </td>
+            <td style="text-align:center">{{ pi_hitung }}</td>
+        </tr>
+        <tr class="summary">
+            <td colspan="6" style="text-align:right">
+                Status Mutu Air
+            </td>
+            <td style="text-align:center">
+                {% if status == 'memenuhi baku mutu' %}
+                <span class="status-box status-memenuhi">Memenuhi</span>
+                {% elif status == 'cemar ringan' %}
+                <span class="status-box status-ringan">Cemar Ringan</span>
+                {% elif status == 'cemar sedang' %}
+                <span class="status-box status-sedang">Cemar Sedang</span>
+                {% else %}
+                <span class="status-box status-berat">Cemar Berat</span>
+                {% endif %}
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Keterangan -->
+{% if hu.keterangan %}
+<p><strong>Keterangan:</strong> {{ hu.keterangan }}</p>
+{% endif %}
+
+<p class="footer-note">
+    Dicetak oleh sistem SIHKA BBWS Citanduy pada {{ now.strftime('%d %B %Y %H:%M') }}<br>
+    Acuan: Kepmen LH No. 115 Tahun 2003 tentang Pedoman Penentuan Status Mutu Air
+</p>
+
+</body>
+</html>

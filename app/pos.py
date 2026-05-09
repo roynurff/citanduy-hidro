@@ -7,9 +7,10 @@ import json
 import datetime
 from peewee import DoesNotExist, fn
 
-from app.models import Pos, ManualDaily, PosMap, OPos, LengkungDebit, LuwesPos, HasilUjiKualitasAir
+from app.models import Pos, ManualDaily, PosMap, OPos, LengkungDebit, LuwesPos, HasilUjiKualitasAir, LokasiMaster, ParameterDetail, PARAMETER_LIST
 from app import get_sampling
 from app.forms import CurahHujanForm, TmaForm, HasilUjiKAForm
+from weasyprint import HTML as WeasyprintHTML
 bp = Blueprint('pos', __name__, url_prefix='/pos')
 
 
@@ -25,107 +26,427 @@ def pos_da():
 @login_required
 def delete_data_ka(id):
     try:
-        hu = HasilUjiKualitasAir.get(HasilUjiKualitasAir.id==id)
+        hu = HasilUjiKualitasAir.get(HasilUjiKualitasAir.id == id)
     except DoesNotExist:
-        return abort(404)
+        return jsonify({'ok': False, 'error': 'Not found'}), 404
+    
     try:
-        path = 'static/ka/' + hu.sampling.strftime('_%Y/_%m/') + hu.doc_path
-        if hu.doc_path and os.path.exists('app/' + path): os.remove('app/' + path)
+        # Fix path: jangan double-append doc_path ke path yang sudah ada nama file
+        if hu.doc_path:
+            rel_dir = f"app/static/ka/{hu.sampling.strftime('_%Y/_%m')}"
+            doc_full = os.path.join(rel_dir, hu.doc_path)
+            if os.path.exists(doc_full):
+                os.remove(doc_full)
+        
+        if hu.foto_path:
+            rel_dir = f"app/static/ka/{hu.sampling.strftime('_%Y/_%m')}"
+            foto_full = os.path.join(rel_dir, hu.foto_path)
+            if os.path.exists(foto_full):
+                os.remove(foto_full)
+        
+        # Hapus parameter details dulu (FK constraint)
+        ParameterDetail.delete().where(ParameterDetail.hasil_uji == hu).execute()
         hu.delete_instance()
-        flash('Data hasil uji kualitas air berhasil dihapus.', 'success')
+        
+        return jsonify({'ok': True, 'message': 'Data berhasil dihapus'})
     except Exception as e:
-        flash('Gagal menghapus data hasil uji kualitas air: {}'.format(str(e)), 'danger')
-    return redirect('/pos/ka')
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 @bp.route('/ka/add', methods=['GET', 'POST'])
 @login_required
 def add_data_ka():
-    pos_id = request.args.get('pid')
     form = HasilUjiKAForm()
-    try:
-        pos = Pos.get(int(pos_id))
-    except DoesNotExist:
-        return abort(404)
     
-    try:
-        s = request.args.get('s')
-        sampling = datetime.date(int(s.split('-')[0]), int(s.split('-')[1]), 1)
-    except:
-        sampling = datetime.date.today()
+    # Get tahun/year from request args or use current year
+    tahun = int(request.args.get('tahun', datetime.date.today().year))
+    
     if form.validate_on_submit():
-        if 'fname' not in request.files:
-            flash('No file part')
+        try:
+            # Get form data
+            lokasi_id = request.form.get('lokasi_id')
+            sungai = form.sungai.data.strip() if form.sungai.data else None
+            kota_kabupaten = form.kota_kabupaten.data.strip() if form.kota_kabupaten.data else None
+            pi = form.pi.data
+            keterangan = form.keterangan.data.strip() if form.keterangan.data else None
+            periode = int(form.periode.data)
+            sampling = form.sampling.data  # Required DateField
+            lembaga = form.lembaga.data.strip() if form.lembaga.data else None
+            ll = form.ll.data.strip() if form.ll.data else None
+            kelas_baku_mutu = int(form.kelas_baku_mutu.data) if form.kelas_baku_mutu.data else 2
+            
+            # Get lokasi_master if lokasi_id provided
+            lokasi_master = None
+            lokasi_name = None
+            if lokasi_id and lokasi_id.isdigit():
+                lokasi_master = LokasiMaster.get_by_id(int(lokasi_id))
+                lokasi_name = lokasi_master.nama_lokasi
+                # Override dengan data dari master jika tidak diisi manual
+                if not sungai: sungai = lokasi_master.sungai
+                if not kota_kabupaten: kota_kabupaten = lokasi_master.kota_kabupaten
+                if not ll: ll = lokasi_master.koordinat
+            else:
+                # Fallback untuk manual input
+                lokasi_name = request.form.get('lokasi', 'Unknown')
+            
+            # Create directory path
+            rel_dir = f"{current_app.config['KUALITAS_AIR_FOLDER']}/{sampling.strftime('_%Y/_%m')}"
+            full_dir = os.path.join('app', rel_dir)
+            os.makedirs(full_dir, exist_ok=True)
+            
+            # Handle main document (hasil uji lab)
+            doc_filename = None
+            if 'fname' in request.files and request.files['fname'].filename != '':
+                file = request.files['fname']
+                doc_filename = secure_filename(file.filename or '')
+                full_file_path = os.path.join(full_dir, doc_filename)
+                file.save(full_file_path)
+            
+            # Handle foto dokumentasi
+            foto_filename = None
+            if 'foto' in request.files and request.files['foto'].filename != '':
+                file = request.files['foto']
+                foto_filename = secure_filename(file.filename or '')
+                full_file_path = os.path.join(full_dir, foto_filename)
+                file.save(full_file_path)
+            
+            # Create record
+            hu = HasilUjiKualitasAir.create(
+                lokasi_master=lokasi_master,
+                lokasi=lokasi_name,
+                sungai=sungai,
+                kota_kabupaten=kota_kabupaten,
+                sampling=sampling,
+                periode=periode,
+                pi=pi,
+                keterangan=keterangan,
+                ll=ll,
+                doc_path=doc_filename,
+                foto_path=foto_filename,
+                lembaga=lembaga,
+                kelas_baku_mutu=kelas_baku_mutu,
+                username=current_user.username
+            )
+            
+            # Handle parameter details
+            parameters_json = request.form.get('parameters_json', '{}')
+            try:
+                parameters = json.loads(parameters_json)
+                for param_name, nilai in parameters.items():
+                    if nilai:  # Only save non-empty values
+                        # Find parameter definition
+                        param_def = next((p for p in PARAMETER_LIST if p['name'] == param_name), None)
+                        if param_def:
+                            ParameterDetail.create(
+                                hasil_uji=hu,
+                                parameter_name=param_name,
+                                satuan=param_def.get('satuan'),
+                                nilai=str(nilai)
+                            )
+            except json.JSONDecodeError:
+                pass  # Skip parameters if JSON invalid
+            
+            flash(f'Data Kualitas Air "{lokasi_name}" dengan {len(parameters)} parameter berhasil ditambahkan!')
+            return redirect(f'/pos/ka?tahun={tahun}')
+        except Exception as e:
+            flash(f'Error: {str(e)}')
+            import traceback
+            traceback.print_exc()
             return redirect(request.url)
-        file = request.files['fname']
-        if file.filename == '':
-            flash('File Hasil Uji Lab belum diisi')
-            return redirect(request.url)
-        fname = secure_filename(file.filename or '')
-        # Create directory path - consistent for both makedirs and file.save
-        rel_dir = f"{current_app.config['KUALITAS_AIR_FOLDER']}/{sampling.strftime('_%Y/_%m')}"
-        full_dir = os.path.join('app', rel_dir)
-        os.makedirs(full_dir, exist_ok=True)
-        full_file_path = os.path.join(full_dir, fname)
-        file.save(full_file_path)
-        flash(f'File {fname} uploaded successfully!')
-        ret = {'pos': form.pos.data, 
-               'sampling': form.sampling.data, 
-               'll': form.ll.data, 
-               'doc_path': fname, 
-               'lembaga': form.lembaga.data,
-               'username': current_user.username,
-               'status_hasil_uji': form.status_hasil_uji.data
-               }
-        hu = HasilUjiKualitasAir.create(**ret)
-        return redirect('/pos/ka')
-    else:
-        form.pos.data = pos_id
-        form.sampling.data = request.args.get('s')
-        form.ll.data = pos.ll
+    
+    # GET request - render form
     ctx = {
-        'pos': pos,
-        'sampling': sampling,
-        'form': form
-    }
-    return render_template('pos/add_ka.html', ctx=ctx)
+    'tahun': tahun,
+    'form': form,
+    'parameter_list': PARAMETER_LIST,
+    'parameter_values': [],
+    'edit_mode': False,
+    'record': None,
+    'lokasi_master_id': None,
+    'lokasi_nama': '',
+}
+    return render_template('pos/add_ka_new.html', ctx=ctx)
+
+@bp.route('/ka/edit/<int:record_id>', methods=['GET', 'POST'])
+@login_required
+def edit_data_ka(record_id):
+    try:
+        hu = HasilUjiKualitasAir.get_by_id(record_id)
+    except HasilUjiKualitasAir.DoesNotExist:
+        flash('Data tidak ditemukan!')
+        return redirect('/pos/ka')
+    
+    form = HasilUjiKAForm()
+    tahun = int(request.args.get('tahun', hu.sampling.year))
+    
+    if form.validate_on_submit():
+        try:
+            # Get form data
+            lokasi_id = request.form.get('lokasi_id')
+            sungai = form.sungai.data.strip() if form.sungai.data else None
+            kota_kabupaten = form.kota_kabupaten.data.strip() if form.kota_kabupaten.data else None
+            pi = form.pi.data
+            keterangan = form.keterangan.data.strip() if form.keterangan.data else None
+            periode = int(form.periode.data)
+            lembaga = form.lembaga.data.strip() if form.lembaga.data else None
+            ll = form.ll.data.strip() if form.ll.data else None
+            kelas_baku_mutu = int(form.kelas_baku_mutu.data) if form.kelas_baku_mutu.data else 2
+            
+            # Get lokasi_master if lokasi_id provided
+            lokasi_master = None
+            lokasi_name = None
+            if lokasi_id and lokasi_id.isdigit():
+                lokasi_master = LokasiMaster.get_by_id(int(lokasi_id))
+                lokasi_name = lokasi_master.nama_lokasi
+                # Override dengan data dari master jika tidak diisi manual
+                if not sungai: sungai = lokasi_master.sungai
+                if not kota_kabupaten: kota_kabupaten = lokasi_master.kota_kabupaten
+                if not ll: ll = lokasi_master.koordinat
+            else:
+                # Fallback untuk manual input
+                lokasi_name = request.form.get('lokasi', hu.lokasi)
+            
+            # Use sampling date from form (required)
+            sampling = form.sampling.data
+            
+            # Update record
+            hu.lokasi_master = lokasi_master
+            hu.lokasi = lokasi_name
+            hu.sungai = sungai
+            hu.kota_kabupaten = kota_kabupaten
+            hu.sampling = sampling
+            hu.periode = periode
+            hu.pi = pi
+            hu.keterangan = keterangan
+            hu.ll = ll
+            hu.lembaga = lembaga
+            hu.kelas_baku_mutu = kelas_baku_mutu
+            hu.mdate = datetime.datetime.now()
+            
+            # Handle file uploads if provided (optional)
+            if 'fname' in request.files and request.files['fname'].filename != '':
+                file = request.files['fname']
+                doc_filename = secure_filename(file.filename or '')
+                rel_dir = f"{current_app.config['KUALITAS_AIR_FOLDER']}/{sampling.strftime('_%Y/_%m')}"
+                full_dir = os.path.join('app', rel_dir)
+                os.makedirs(full_dir, exist_ok=True)
+                full_file_path = os.path.join(full_dir, doc_filename)
+                file.save(full_file_path)
+                hu.doc_path = doc_filename
+            
+            if 'foto' in request.files and request.files['foto'].filename != '':
+                file = request.files['foto']
+                foto_filename = secure_filename(file.filename or '')
+                rel_dir = f"{current_app.config['KUALITAS_AIR_FOLDER']}/{sampling.strftime('_%Y/_%m')}"
+                full_dir = os.path.join('app', rel_dir)
+                os.makedirs(full_dir, exist_ok=True)
+                full_file_path = os.path.join(full_dir, foto_filename)
+                file.save(full_file_path)
+                hu.foto_path = foto_filename
+            
+            hu.save()
+            
+            # Handle parameter details - delete old ones and create new ones
+            ParameterDetail.delete().where(ParameterDetail.hasil_uji == hu).execute()
+            
+            parameters_json = request.form.get('parameters_json', '{}')
+            try:
+                parameters = json.loads(parameters_json)
+                for param_name, nilai in parameters.items():
+                    if nilai:  # Only save non-empty values
+                        # Find parameter definition
+                        param_def = next((p for p in PARAMETER_LIST if p['name'] == param_name), None)
+                        if param_def:
+                            ParameterDetail.create(
+                                hasil_uji=hu,
+                                parameter_name=param_name,
+                                satuan=param_def.get('satuan'),
+                                nilai=str(nilai)
+                            )
+            except json.JSONDecodeError:
+                pass  # Skip parameters if JSON invalid
+            
+            flash(f'Data Kualitas Air "{lokasi_name}" berhasil diperbarui!')
+            return redirect(f'/pos/ka?tahun={tahun}')
+        except Exception as e:
+            flash(f'Error: {str(e)}')
+            import traceback
+            traceback.print_exc()
+            return redirect(request.url)
+    
+    # Pre-populate form with existing data
+    if request.method == 'GET':
+        form.lokasi.data = hu.lokasi
+        form.sungai.data = hu.sungai
+        form.kota_kabupaten.data = hu.kota_kabupaten
+        form.sampling.data = hu.sampling
+        form.periode.data = str(hu.periode)
+        form.ll.data = hu.ll
+        form.pi.data = hu.pi
+        form.keterangan.data = hu.keterangan
+        form.lembaga.data = hu.lembaga
+        form.kelas_baku_mutu.data = str(hu.kelas_baku_mutu) if hu.kelas_baku_mutu else '2'
+        hu.lokasi_master_id = hu.lokasi_master.id if hu.lokasi_master else None
+    
+    # Get parameter values for display - convert to dicts for JSON serialization
+    parameter_details = list(
+        ParameterDetail.select().where(ParameterDetail.hasil_uji == hu)
+    )
+    parameter_values = [
+        {
+            'parameter_name': pd.parameter_name,
+            'satuan': pd.satuan,
+            'nilai': pd.nilai
+        }
+        for pd in parameter_details
+    ]
+    
+    ctx = {
+    'tahun': tahun,
+    'form': form,
+    'parameter_list': PARAMETER_LIST,
+    'parameter_values': parameter_values,
+    'edit_mode': True,
+    'record': hu,
+    'lokasi_master_id': hu.lokasi_master.id if hu.lokasi_master else None,
+    'lokasi_nama': hu.lokasi or '',
+}
+    return render_template('pos/add_ka_new.html', ctx=ctx)
 
 @bp.route('/ka')
 @login_required
 def data_ka():
-    (_sampling, sampling, sampling_) = get_sampling(request.args.get('s', None))
-    poska = Pos.select().where(Pos.tipe=='4').order_by(Pos.sungai)
-    if sampling.month < 7:
-        sampling = sampling.replace(month=1)
-        _sampling = _sampling.replace(month=7, year=sampling.year - 1)
-        if sampling_:
-            sampling_ = sampling_.replace(month=7)
-    else:
-        sampling = sampling.replace(month=7)
-        _sampling = _sampling.replace(month=1)
-        if sampling_:
-            sampling_ = sampling_.replace(month=1, year=sampling.year + 1)
-    sungai = set([p.sungai for p in poska])
-    months = [sampling.month + m for m in range(6)]
-    huka = (HasilUjiKualitasAir.select()
-            .where(HasilUjiKualitasAir.sampling.year==sampling.year,
-                   HasilUjiKualitasAir.sampling.month.in_(months))
-            .order_by(HasilUjiKualitasAir.sampling))
-    hasil_uji = {}
-    for hu in huka:
-        hasil_uji.update({'{}_{}'.format(hu.pos_id, hu.sampling.month):  hu})
-
-    out = {}
-    for s in sungai:
-        out.update({s: [p for p in poska if p.sungai==s]})
+    tahun = request.args.get('tahun', datetime.date.today().year, type=int)
+    
+    # Get all data untuk tahun ini, ordered by lokasi and periode
+    all_data = (HasilUjiKualitasAir.select()
+                .where(HasilUjiKualitasAir.sampling.year == tahun)
+                .order_by(HasilUjiKualitasAir.lokasi, HasilUjiKualitasAir.periode))
+    
+    # Detect which periodes have data and get their actual months
+    periode_months = {}  # {periode: 'Bulan'}
+    for hu in all_data:
+        if hu.periode and 1 <= hu.periode <= 3 and hu.periode not in periode_months:
+            # Get month name from sampling date
+            bulan_name = hu.sampling.strftime('%B')
+            periode_months[hu.periode] = bulan_name
+    
+    # Sort periode that have data
+    periode_with_data = sorted(periode_months.keys())
+    
+    # Reorganize data by lokasi with nested periode structure
+    lokasi_data = {}
+    for hu in all_data:
+        if hu.lokasi not in lokasi_data:
+            lokasi_data[hu.lokasi] = {
+                'lokasi': hu.lokasi,
+                'sungai': hu.sungai,
+                'kota_kabupaten': hu.kota_kabupaten,
+                'periode': {}  # use dict instead of list
+            }
+        
+        if hu.periode and 1 <= hu.periode <= 3:
+            lokasi_data[hu.lokasi]['periode'][hu.periode] = {
+                'bulan': periode_months.get(hu.periode, ''),
+                'pi': hu.pi,
+                'keterangan': hu.keterangan,
+                'status': hu.status_hasil_uji,
+                'color': hu.color_status,
+                'id': hu.id
+            }
+    
+    # Get ALL lokasi dari LokasiMaster untuk show empty rows juga
+    all_lokasi_master = LokasiMaster.select().order_by(LokasiMaster.nama_lokasi)
+    
+    # Merge: ensure all lokasi dari master appear in table, even if no data
+    for lokasi_master in all_lokasi_master:
+        if lokasi_master.nama_lokasi not in lokasi_data:
+            lokasi_data[lokasi_master.nama_lokasi] = {
+                'lokasi': lokasi_master.nama_lokasi,
+                'sungai': lokasi_master.sungai,
+                'kota_kabupaten': lokasi_master.kota_kabupaten,
+                'periode': {}  # Empty periode dict = no data for this year
+            }
+    
+    # Convert dict to list, sorted by lokasi
+    data_ka_nested = sorted(lokasi_data.values(), key=lambda x: x['lokasi'])
+    
     ctx = {
-        '_sampling': _sampling,
-        'sampling': sampling,
-        'sampling_': sampling_,
-        'poses': poska,
-        'sungai': out,
-        'hasil_uji': hasil_uji
+        'tahun': tahun,
+        'now': datetime.date.today(),
+        'data_ka': data_ka_nested,
+        'periode_with_data': periode_with_data,
+        'periode_months': periode_months
     }
     return render_template('pos/data_ka.html', ctx=ctx)
+
+@bp.route('/ka/detail/<lokasi>')
+@login_required
+def detail_ka(lokasi):
+    tahun = request.args.get('tahun', datetime.date.today().year, type=int)
+
+    tahun_list = [tahun, tahun - 1, tahun - 2]
+    chart_data_by_year = {}
+    param_data_by_year = {}  # ← baru
+    available_years = []
+
+    for y in tahun_list:
+        rows = list(HasilUjiKualitasAir.select()
+                    .where(HasilUjiKualitasAir.lokasi == lokasi,
+                           HasilUjiKualitasAir.sampling.year == y)
+                    .order_by(HasilUjiKualitasAir.sampling))
+        if not rows:
+            continue
+
+        available_years.append(y)
+        labels = [f"Periode {r.periode} ({r.sampling.strftime('%b %Y')})" for r in rows]
+
+        chart_data_by_year[y] = {
+            'labels': labels,
+            'data': [r.pi for r in rows if r.pi is not None]
+        }
+
+        # Kumpulkan data parameter per tahun
+        param_data_by_year[y] = {'labels': labels}
+        for r in rows:
+            for pd in ParameterDetail.select().where(ParameterDetail.hasil_uji == r):
+                if pd.parameter_name not in param_data_by_year[y]:
+                    param_data_by_year[y][pd.parameter_name] = []
+                try:
+                    val = float(str(pd.nilai).replace('<','').replace('>','').strip())
+                except:
+                    val = None
+                param_data_by_year[y][pd.parameter_name].append(val)
+
+    # Kumpulkan semua nama parameter yang tersedia
+    parameter_names = sorted(set(
+        k for y_data in param_data_by_year.values()
+        for k in y_data.keys()
+        if k != 'labels'
+    ))
+
+    # Data tahun aktif untuk tabel
+    all_data = list(HasilUjiKualitasAir.select()
+                    .where(HasilUjiKualitasAir.lokasi == lokasi,
+                           HasilUjiKualitasAir.sampling.year == tahun)
+                    .order_by(HasilUjiKualitasAir.sampling))
+
+    table_data = [
+        {'sampling': hu.sampling, 'pi': hu.pi,
+         'status': hu.status_hasil_uji, 'keterangan': hu.keterangan}
+        for hu in all_data if hu.pi is not None
+    ]
+
+    ctx = {
+        'lokasi': lokasi,
+        'tahun': tahun,
+        'available_years': available_years,
+        'chart_data_by_year': chart_data_by_year,
+        'param_data_by_year': param_data_by_year,   # ← baru
+        'parameter_names': parameter_names,           # ← baru
+        'table_data': table_data,
+        'all_data': all_data,
+    }
+    return render_template('pka/detail.html', ctx=ctx)
 
 @bp.route('/luwes')
 @login_required
@@ -393,3 +714,106 @@ def index():
         if p.id in op:
             p.vendor = op[p.id].source
     return render_template('pos/index.html', poses=poses)
+
+@bp.route('/ka/export/<int:record_id>')
+@login_required
+def export_ka_pdf(record_id):
+    try:
+        hu = HasilUjiKualitasAir.get_by_id(record_id)
+    except HasilUjiKualitasAir.DoesNotExist:
+        abort(404)
+
+    # Ambil parameter details
+    params = list(ParameterDetail.select().where(ParameterDetail.hasil_uji == hu))
+
+    # Hitung kolom tambahan untuk tabel PDF
+    # Baku mutu kelas 2 (sesuai Kepmen LH 115/2003)
+    BAKU_MUTU_KELAS2 = {
+        'Temperatur':                     {'max': 3,    'satuan': '°C'},
+        'Padatan Terlarut Total (TDS)':   {'max': 1000,  'satuan': 'mg/L'},
+        'Padatan Tersuspensi Total (TSS)':{'max': 50,    'satuan': 'mg/L'},
+        'Derajat Keasaman (pH)':          {'max': 7.5,     'satuan': '-'},
+        'Kebutuhan Oksigen Biokimiawi (BOD)': {'max': 3, 'satuan': 'mg/L'},
+        'Kebutuhan Oksigen Kimiawi (COD)':    {'max': 25,'satuan': 'mg/L'},
+        'Oksigen Terlarut (DO)':          {'max': 4,     'satuan': 'mg/L'},
+        'Nitrat (sebagai N)':             {'max': 10,    'satuan': 'mg/L'},
+        'Nitrit (sebagai N)':             {'max': 0.06,  'satuan': 'mg/L'},
+        'Total Fosfat (Sebagai P)':       {'max': 0.2,   'satuan': 'mg/L'},
+        'Kadmium (Cd) Terlarut':          {'max': 0.01,  'satuan': 'mg/L'},
+        'Seng (Zn) Terlarut':             {'max': 0.05,  'satuan': 'mg/L'},
+        'Tembaga (Cu) Terlarut':          {'max': 0.02,  'satuan': 'mg/L'},
+        'Deterjen Total':                 {'max': 0.2,   'satuan': 'mg/L'},
+        'Fecal Coliform':                 {'max': 1000,  'satuan': 'MPN/100mL'},
+        'Total Coliform':                 {'max': 5000,  'satuan': 'MPN/100mL'},
+        'Kekeruhan':                      {'max': '',    'satuan': 'NTU'},
+    }
+
+    import math
+    param_rows = []
+    ci_baru_vals = []  # ← ini yang dipakai untuk max, avg, PI
+
+    for pd in params:
+        bm = BAKU_MUTU_KELAS2.get(pd.parameter_name, {})
+        bm_max = bm.get('max')
+        try:
+            nilai_float = float(str(pd.nilai).replace('<', '').replace('>', '').strip())
+        except (ValueError, TypeError):
+            nilai_float = None
+
+        ci_ci_max = None
+        ci_baru = None  # (Cᵢ/Lᵢⱼ)baru
+
+        if nilai_float is not None and bm_max:
+            ci_ci_max = round(nilai_float / bm_max, 4)
+            # Rumus (Cᵢ/Lᵢⱼ)baru: IF(ci > 1, 1 + 5*LOG10(ci), ci)
+            if ci_ci_max > 1:
+                ci_baru = round(1 + 5 * math.log10(ci_ci_max), 4)
+            else:
+                ci_baru = ci_ci_max
+            ci_baru_vals.append(ci_baru)
+
+        param_rows.append({
+            'name': pd.parameter_name,
+            'satuan': pd.satuan,
+            'nilai': pd.nilai,
+            'bm_max': bm_max,
+            'ci_ci_max': ci_ci_max,
+            'ci_baru': ci_baru,   # ← ganti log_val jadi ci_baru
+        })
+
+    # Hitung dari kolom (Cᵢ/Lᵢⱼ)baru
+    if ci_baru_vals:
+        max_val = max(ci_baru_vals)
+        avg_val = sum(ci_baru_vals) / len(ci_baru_vals)
+        pi_hitung = round(math.sqrt((avg_val**2 + max_val**2) / 2), 3)
+    else:
+        max_val = avg_val = pi_hitung = None
+
+    # Status berdasarkan pi_hitung (bukan hu.pi yang manual)
+    def get_status(pi):
+        if pi is None: return '-'
+        if pi <= 1:  return 'memenuhi baku mutu'
+        if pi <= 5:  return 'cemar ringan'
+        if pi <= 10: return 'cemar sedang'
+        return 'cemar berat'
+
+    status_hitung = get_status(pi_hitung)
+
+    html_string = render_template('pos/export_ka_pdf.html',
+        hu=hu,
+        params=param_rows,
+        max_val=round(max_val, 4) if max_val is not None else '-',
+        avg_val=round(avg_val, 4) if avg_val is not None else '-',
+        pi_hitung=pi_hitung if pi_hitung is not None else '-',
+        status=status_hitung,  # ← pakai hasil hitung, bukan hu.status_hasil_uji
+        now=datetime.datetime.now(),
+    )
+
+    pdf_bytes = WeasyprintHTML(string=html_string, base_url=request.host_url).write_pdf()
+
+    filename = f"KualitasAir_{hu.lokasi}_{hu.sampling}_Periode{hu.periode}.pdf"
+    return current_app.response_class(
+        pdf_bytes,
+        mimetype='application/pdf',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+    )

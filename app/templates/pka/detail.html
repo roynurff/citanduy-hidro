@@ -1,0 +1,462 @@
+{% extends 'base.html' %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .stat-card {
+        border-left: 4px solid;
+        border-radius: 6px;
+    }
+    .stat-card.memenuhi { border-color: #198754; }
+    .stat-card.ringan   { border-color: #ffc107; }
+    .stat-card.sedang   { border-color: #fd7e14; }
+    .stat-card.berat    { border-color: #dc3545; }
+
+    .pi-badge {
+        font-size: 1.4rem;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+    }
+    .year-tab.active { 
+        background: #0d6efd; 
+        color: white; 
+        border-color: #0d6efd;
+    }
+    .parameter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 0.5rem;
+    }
+    .param-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 10px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+    .param-item .param-name { color: #495057; }
+    .param-item .param-val  { font-weight: 600; color: #212529; }
+    .param-item .param-sat  { font-size: 0.75rem; color: #6c757d; margin-left: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-lighter mb-1">Detail Kualitas Air</h2>
+        <p class="text-secondary mb-0">
+            <i class="bi bi-geo-alt"></i> <strong>{{ ctx.lokasi }}</strong>
+            {% if ctx.all_data and ctx.all_data[0].sungai %}
+            &nbsp;·&nbsp; Sungai {{ ctx.all_data[0].sungai }}
+            {% endif %}
+            {% if ctx.all_data and ctx.all_data[0].kota_kabupaten %}
+            &nbsp;·&nbsp; {{ ctx.all_data[0].kota_kabupaten }}
+            {% endif %}
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        <!-- Export PDF — satu per periode, dropdown -->
+        <div class="dropdown">
+            <button class="btn btn-outline-danger dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-file-earmark-pdf"></i> Export PDF
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                {% for data in ctx.table_data %}
+                <li>
+                    <a class="dropdown-item" 
+                       href="/pos/ka/export/{{ ctx.all_data[loop.index0].id }}" 
+                       target="_blank">
+                        Periode {{ ctx.all_data[loop.index0].periode }} 
+                        — {{ data.sampling.strftime('%d %b %Y') }}
+                    </a>
+                </li>
+                {% endfor %}
+                {% if not ctx.table_data %}
+                <li><span class="dropdown-item text-muted">Tidak ada data</span></li>
+                {% endif %}
+            </ul>
+        </div>
+        <a href="/pos/ka?tahun={{ ctx.tahun }}" class="btn btn-outline-secondary">
+            <i class="bi bi-chevron-left"></i> Kembali
+        </a>
+    </div>
+</div>
+
+<!-- Kartu ringkasan per periode -->
+{% if ctx.table_data %}
+<div class="row g-3 mb-4">
+    {% for data in ctx.table_data %}
+    {% set hu = ctx.all_data[loop.index0] %}
+    {% set status_class = {
+        'memenuhi baku mutu': 'memenuhi',
+        'cemar ringan': 'ringan',
+        'cemar sedang': 'sedang',
+        'cemar berat': 'berat'
+    } %}
+    <div class="col-md-4">
+        <div class="card stat-card {{ status_class.get(hu.status_hasil_uji, '') }} h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted small mb-1">
+                            Periode {{ hu.periode }} &nbsp;·&nbsp; {{ data.sampling.strftime('%d %b %Y') }}
+                        </p>
+                        <div class="pi-badge">PI = {{ data.pi }}</div>
+                    </div>
+                    <span class="badge 
+                        {% if hu.status_hasil_uji == 'cemar sedang' %}
+                            bg-warning
+                        {% elif hu.status_hasil_uji == 'cemar berat' %}
+                            bg-danger
+                        {% elif hu.status_hasil_uji == 'cemar ringan' %}
+                            bg-warning
+                        {% else %}
+                            bg-success
+                        {% endif %}">
+                        {{ hu.status_hasil_uji or '-' }}
+                    </span>
+                </div>
+                {% if data.keterangan %}
+                <p class="text-muted small mt-2 mb-0">{{ data.keterangan }}</p>
+                {% endif %}
+                {% if hu.lembaga %}
+                <p class="text-muted small mb-0 mt-1">
+                    <i class="bi bi-building"></i> {{ hu.lembaga }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Grafik — tab 3 tahun + pilih parameter -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="card-title mb-0">Grafik Tren Kualitas Air</h6>
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <!-- Pilih parameter -->
+                <select id="paramSelector" class="form-select form-select-sm" style="width: auto; min-width: 220px;">
+                    <option value="pi">Indeks Pencemaran (PI)</option>
+                    {% for p in ctx.parameter_names %}
+                    <option value="{{ p }}">{{ p }}</option>
+                    {% endfor %}
+                </select>
+                <!-- Tab tahun -->
+                <div class="btn-group btn-group-sm" id="yearTabs">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="switchMode('all')" id="btnAll">
+                        3 Tahun
+                    </button>
+                    {% for y in ctx.available_years %}
+                    <button class="btn btn-outline-primary year-tab {% if y == ctx.tahun %}active{% endif %}"
+                            onclick="switchYear({{ y }})" id="btnYear{{ y }}">
+                        {{ y }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <canvas id="piChart" height="90"></canvas>
+        <div id="noDataMsg" class="text-center text-muted py-4 d-none">
+            Tidak ada data untuk parameter dan tahun yang dipilih.
+        </div>
+    </div>
+</div>
+
+<!-- Tabel data lengkap per periode -->
+{% for data in ctx.table_data %}
+{% set hu = ctx.all_data[loop.index0] %}
+<div class="card mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+            Periode {{ hu.periode }} — {{ data.sampling.strftime('%d %B %Y') }}
+        </h6>
+        <a href="/pos/ka/export/{{ hu.id }}" target="_blank" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-file-earmark-pdf"></i> Export PDF
+        </a>
+    </div>
+    <div class="card-body">
+        <!-- Info lokasi -->
+        <div class="row mb-3 text-sm">
+            <div class="col-sm-3 text-muted">Sungai</div>
+            <div class="col-sm-9">{{ hu.sungai or '-' }}</div>
+            <div class="col-sm-3 text-muted">Kab/Kota</div>
+            <div class="col-sm-9">{{ hu.kota_kabupaten or '-' }}</div>
+            {% if hu.ll %}
+            <div class="col-sm-3 text-muted">Koordinat</div>
+            <div class="col-sm-9"><code>{{ hu.ll }}</code></div>
+            {% endif %}
+            <div class="col-sm-3 text-muted">Kelas Baku Mutu</div>
+            <div class="col-sm-9">Kelas {{ hu.kelas_baku_mutu }}</div>
+            {% if hu.lembaga %}
+            <div class="col-sm-3 text-muted">Lembaga Lab</div>
+            <div class="col-sm-9">{{ hu.lembaga }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Parameter detail -->
+        {% set params = hu.parameter_details %}
+        {% if params %}
+        <h6 class="text-muted mb-2" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">
+            Data Parameter Uji
+        </h6>
+        <div class="parameter-grid mb-3">
+            {% for pd in params %}
+            <div class="param-item">
+                <span class="param-name">{{ pd.parameter_name }}</span>
+                <span>
+                    <span class="param-val">{{ pd.nilai }}</span>
+                    <span class="param-sat">{{ pd.satuan }}</span>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- PI dan status -->
+        <div class="d-flex align-items-center gap-3 mt-2 pt-2 border-top">
+            <div>
+                <span class="text-muted small">Indeks Pencemaran:</span>
+                <strong class="ms-1 fs-5">{{ data.pi }}</strong>
+            </div>
+            <div>
+                <span class="badge fs-6
+                    {% if hu.status_hasil_uji == 'cemar sedang' %}bg-warning
+                    {% elif hu.status_hasil_uji == 'cemar berat' %}bg-danger
+                    {% elif hu.status_hasil_uji == 'cemar ringan' %}bg-warning
+                    {% else %}bg-success{% endif %}">
+                    {{ hu.status_hasil_uji or '-' }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% if not ctx.table_data %}
+<div class="alert alert-info">Tidak ada data kualitas air untuk lokasi dan tahun ini.</div>
+{% endif %}
+
+<!-- Klasifikasi PI -->
+<div class="card bg-light mb-5">
+    <div class="card-header">
+        <h6 class="card-title mb-0">Klasifikasi Mutu Air — Metode Indeks Pencemaran (PIⱼ)</h6>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-bordered mb-0">
+            <thead class="table-secondary">
+                <tr>
+                    <th>Nilai PIⱼ</th>
+                    <th>Status</th>
+                    <th>Keterangan</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>0 ≤ PIⱼ ≤ 1</td>
+                    <td><span class="badge bg-success">Memenuhi Baku Mutu</span></td>
+                    <td>Kondisi baik, tidak tercemar</td>
+                </tr>
+                <tr>
+                    <td>1 &lt; PIⱼ ≤ 5</td>
+                    <td><span class="badge bg-warning" style="color: white;">Cemar Ringan</span></td>
+                    <td>Tercemar ringan, masih bisa dimanfaatkan</td>
+                </tr>
+                <tr>
+                    <td>5 &lt; PIⱼ ≤ 10</td>
+                    <td><span class="badge" style="background:#fd7e14;color:white">Cemar Sedang</span></td>
+                    <td>Tercemar sedang, perlu penanganan khusus</td>
+                </tr>
+                <tr>
+                    <td>PIⱼ &gt; 10</td>
+                    <td><span class="badge bg-danger">Cemar Berat</span></td>
+                    <td>Tercemar berat, perlu penanganan darurat</td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="text-muted small px-3 py-2 mb-0">
+            Sumber: Kepmen LH No. 115 Tahun 2003 · Acuan: Baku Mutu Air Kelas {{ ctx.all_data[0].kelas_baku_mutu if ctx.all_data else 2 }}
+        </p>
+    </div>
+</div>
+
+<script>
+// Data dari Flask
+const chartDataByYear = {{ ctx.chart_data_by_year | tojson | safe }};
+const paramDataByYear = {{ ctx.param_data_by_year | tojson | safe }};
+const availableYears  = {{ ctx.available_years | tojson | safe }};
+const currentTahun    = {{ ctx.tahun }};
+
+let currentChart = null;
+let currentYear  = currentTahun;  // null = mode "3 tahun sekaligus"
+let currentParam = 'pi';
+
+// Warna per tahun untuk mode multi-tahun
+const YEAR_COLORS = {
+    0: { border: '#0d6efd', bg: 'rgba(13,110,253,0.08)' },
+    1: { border: '#fd7e14', bg: 'rgba(253,126,20,0.08)' },
+    2: { border: '#198754', bg: 'rgba(25,135,84,0.08)'  },
+};
+
+function getParamLabel(param) {
+    if (param === 'pi') return 'Indeks Pencemaran (PI)';
+    return param;
+}
+
+function buildDatasets(year, param) {
+    // Mode satu tahun
+    if (year !== null) {
+        const src = param === 'pi' ? chartDataByYear : paramDataByYear;
+        const yearData = (src[year] || {})[param === 'pi' ? 'data' : param] || [];
+        const labels   = (src[year] || {}).labels || 
+                         (chartDataByYear[year] || {}).labels || [];
+        return {
+            labels,
+            datasets: [{
+                label: `${getParamLabel(param)} ${year}`,
+                data: yearData,
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13,110,253,0.08)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 7,
+                pointBackgroundColor: '#0d6efd',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointHoverRadius: 9,
+            }]
+        };
+    }
+
+    // Mode 3 tahun sekaligus — gunakan label periode saja (P1, P2, P3)
+    const baseLabels = ['Periode 1', 'Periode 2', 'Periode 3'];
+    const datasets = availableYears.map((y, i) => {
+        const src = param === 'pi' ? chartDataByYear : paramDataByYear;
+        const d   = (src[y] || {})[param === 'pi' ? 'data' : param] || [];
+        const col = YEAR_COLORS[i % 3];
+        return {
+            label: `${getParamLabel(param)} ${y}`,
+            data: d,
+            borderColor: col.border,
+            backgroundColor: col.bg,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+            pointRadius: 6,
+            pointBackgroundColor: col.border,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointHoverRadius: 8,
+        };
+    });
+
+    return { labels: baseLabels, datasets };
+}
+
+function renderChart() {
+    const { labels, datasets } = buildDatasets(currentYear, currentParam);
+    const hasData = datasets.some(d => d.data && d.data.length > 0);
+
+    document.getElementById('noDataMsg').classList.toggle('d-none', hasData);
+
+    const ctx_el = document.getElementById('piChart').getContext('2d');
+    if (currentChart) currentChart.destroy();
+
+    if (!hasData) return;
+
+    const isPI = currentParam === 'pi';
+
+    currentChart = new Chart(ctx_el, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: currentYear === null },  // tampilkan legend di mode multi-tahun
+                tooltip: {
+                    backgroundColor: 'rgba(0,0,0,0.85)',
+                    padding: 12,
+                    callbacks: {
+                        afterBody: isPI ? (items) => {
+                            const v = items[0]?.raw;
+                            if (v == null) return '';
+                            if (v <= 1)  return '→ Memenuhi Baku Mutu';
+                            if (v <= 5)  return '→ Cemar Ringan';
+                            if (v <= 10) return '→ Cemar Sedang';
+                            return '→ Cemar Berat';
+                        } : undefined
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: getParamLabel(currentParam) },
+                    afterDraw: isPI ? chart => {
+                        // Garis batas status PI
+                        const ctx2  = chart.ctx;
+                        const yAxis = chart.scales.y;
+                        const xAxis = chart.scales.x;
+                        [
+                            { val: 1,  color: '#198754' },
+                            { val: 5,  color: '#ffc107' },
+                            { val: 10, color: '#fd7e14' },
+                        ].forEach(r => {
+                            const yPx = yAxis.getPixelForValue(r.val);
+                            if (yPx < yAxis.top || yPx > yAxis.bottom) return;
+                            ctx2.save();
+                            ctx2.setLineDash([6, 4]);
+                            ctx2.strokeStyle = r.color;
+                            ctx2.lineWidth = 1;
+                            ctx2.beginPath();
+                            ctx2.moveTo(xAxis.left, yPx);
+                            ctx2.lineTo(xAxis.right, yPx);
+                            ctx2.stroke();
+                            ctx2.restore();
+                        });
+                    } : undefined
+                },
+                x: { title: { display: true, text: 'Periode Sampling' } }
+            }
+        }
+    });
+}
+
+function switchYear(year) {
+    currentYear = year;
+    document.querySelectorAll('.year-tab').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.textContent.trim()) === year);
+    });
+    document.getElementById('btnAll').classList.remove('active');
+    renderChart();
+}
+
+function switchMode(mode) {
+    if (mode === 'all') {
+        currentYear = null;
+        document.querySelectorAll('.year-tab').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('btnAll').classList.add('active');
+        renderChart();
+    }
+}
+
+document.getElementById('paramSelector').addEventListener('change', function() {
+    currentParam = this.value;
+    renderChart();
+});
+
+// Init
+renderChart();
+</script>
+
+{% endblock %}

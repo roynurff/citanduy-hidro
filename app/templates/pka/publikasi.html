@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% block title %}Publikasi Kualitas Air - {{ ctx.bulan_nama }} {{ ctx.tahun }}{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+    <a href="/pka?tahun={{ ctx.tahun }}" class="btn btn-outline-secondary">
+        <i class="bi bi-chevron-left"></i> Kembali ke Daftar
+    </a>
+</div>
+
+<h2 class="border-start border-5 border-danger ps-2 fw-lighter mb-4">
+    Data Kualitas Air - {{ ctx.bulan_nama }} {{ ctx.tahun }}
+</h2>
+
+{% if ctx.data %}
+    <!-- Month Summary Stats -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title text-primary">{{ ctx.data|length }}</h4>
+                    <p class="card-text text-muted">Total Pengambilan</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title text-success">
+                        {{ ctx.data|selectattr('status_hasil_uji', 'equalto', 'memenuhi baku mutu')|list|length }}
+                    </h4>
+                    <p class="card-text text-muted">Memenuhi Baku Mutu</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title text-warning">
+                        {{ ctx.data|selectattr('status_hasil_uji', 'equalto', 'cemar ringan')|list|length }}
+                    </h4>
+                    <p class="card-text text-muted">Cemar Ringan</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title text-danger">
+                        {{ ctx.data|selectattr('status_hasil_uji', 'in', ['cemar sedang', 'cemar berat'])|list|length }}
+                    </h4>
+                    <p class="card-text text-muted">Cemar Sedang/Berat</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Gallery Section -->
+    {% set foto_list = ctx.data|selectattr('foto_path')|map(attribute='foto_path')|list %}
+    {% if foto_list|length > 0 %}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-images"></i> Galeri Dokumentasi ({{ foto_list|length }} foto)
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for hu in ctx.data %}
+                    {% if hu.foto_path %}
+                        <div class="col-md-3 col-sm-4 col-6">
+                            <div class="fotogaleri-item">
+                                <img 
+                                    src="/static/ka/{{ hu.sampling.strftime('_%Y/_%m') }}/{{ hu.foto_path }}" 
+                                    alt="Dokumentasi {{ hu.lokasi }}"
+                                    class="img-fluid rounded shadow-sm"
+                                    style="object-fit: cover; height: 200px; width: 100%; cursor: pointer;"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#fotoModal" 
+                                    onclick="showFotoModal('/static/ka/{{ hu.sampling.strftime('_%Y/_%m') }}/{{ hu.foto_path }}', '{{ hu.lokasi }}', '{{ hu.sampling.strftime('%d %b %Y') }}')"
+                                >
+                                <small class="d-block mt-2 text-center text-muted">{{ hu.lokasi }}</small>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk preview foto -->
+    <div class="modal fade" id="fotoModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fotoModalTitle">Dokumentasi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="fotoModalImg" src="" alt="Foto" class="img-fluid" style="max-height: 500px;">
+                </div>
+                <div class="modal-footer">
+                    <small id="fotoModalInfo" class="text-muted"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Data Table -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Data Kualitas Air Lengkap</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="5%">No</th>
+                            <th width="20%">Lokasi Pengambilan Sampel</th>
+                            <th width="15%">Sungai</th>
+                            <th width="12%">Kab/Kota</th>
+                            <th width="10%">Periode</th>
+                            <th width="12%">Tanggal Sampling</th>
+                            <th width="8%" class="text-center">PI</th>
+                            <th width="15%">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hu in ctx.data %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ hu.lokasi }}</strong></td>
+                            <td>{{ hu.sungai or '-' }}</td>
+                            <td>{{ hu.kota_kabupaten or '-' }}</td>
+                            <td>
+                                <span class="badge bg-info">Periode {{ hu.periode }}</span>
+                            </td>
+                            <td>{{ hu.sampling.strftime('%d %b %Y') }}</td>
+                            <td class="text-center">
+                                <strong>{{ hu.pi or '-' }}</strong>
+                            </td>
+                            <td>
+                                {% if hu.status_hasil_uji %}
+                                    {% if hu.status_hasil_uji == 'cemar sedang' %}
+                                    <span class="badge" style="background-color: #fd7e14; color: white;">
+                                        {{ hu.status_hasil_uji }}
+                                    </span>
+                                    {% elif hu.status_hasil_uji == 'cemar ringan' %}
+                                    <span class="badge bg-warning" style="color: white;">{{ hu.status_hasil_uji }}</span>
+                                    {% else %}
+                                    <span class="badge bg-{{ hu.color_status }}">{{ hu.status_hasil_uji }}</span>
+                                    {% endif %}
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Klasifikasi PI -->
+    <div class="card bg-light mb-5">
+        <div class="card-header">
+            <h6 class="card-title mb-0">Klasifikasi Mutu Air — Metode Indeks Pencemaran (PIⱼ)</h6>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-secondary">
+                    <tr>
+                        <th>Nilai PIⱼ</th>
+                        <th>Status</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>0 ≤ PIⱼ ≤ 1</td>
+                        <td><span class="badge bg-success">Memenuhi Baku Mutu</span></td>
+                        <td>Kondisi baik, tidak tercemar</td>
+                    </tr>
+                    <tr>
+                        <td>1 &lt; PIⱼ ≤ 5</td>
+                        <td><span class="badge bg-warning" style="color: white;">Cemar Ringan</span></td>
+                        <td>Tercemar ringan, masih bisa dimanfaatkan</td>
+                    </tr>
+                    <tr>
+                        <td>5 &lt; PIⱼ ≤ 10</td>
+                        <td><span class="badge" style="background:#fd7e14;color:white">Cemar Sedang</span></td>
+                        <td>Tercemar sedang, perlu penanganan khusus</td>
+                    </tr>
+                    <tr>
+                        <td>PIⱼ &gt; 10</td>
+                        <td><span class="badge bg-danger">Cemar Berat</span></td>
+                        <td>Tercemar berat, perlu penanganan darurat</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="text-muted small px-3 py-2 mb-0">
+                Sumber: Kepmen LH No. 115 Tahun 2003 · Acuan: Baku Mutu Air Kelas {{ ctx.all_data[0].kelas_baku_mutu if ctx.all_data else 2 }}
+            </p>
+        </div>
+    </div>
+
+{% else %}
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i>
+    <strong>Data Tidak Tersedia</strong>
+    <p>Tidak ada data kualitas air untuk {{ ctx.bulan_nama }} {{ ctx.tahun }}</p>
+</div>
+{% endif %}
+
+<style>
+    .card {
+        border: 1px solid #dee2e6;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.075);
+    }
+    
+    .fotogaleri-item {
+        position: relative;
+        overflow: hidden;
+        border-radius: 0.25rem;
+        transition: transform 0.3s ease;
+    }
+    
+    .fotogaleri-item:hover {
+        transform: scale(1.05);
+    }
+    
+    .fotogaleri-item img {
+        display: block;
+    }
+</style>
+
+<script>
+    function showFotoModal(src, lokasi, tanggal) {
+        document.getElementById('fotoModalImg').src = src;
+        document.getElementById('fotoModalTitle').textContent = 'Dokumentasi - ' + lokasi;
+        document.getElementById('fotoModalInfo').textContent = lokasi + ' - ' + tanggal;
+    }
+</script>
+
+{% endblock %}

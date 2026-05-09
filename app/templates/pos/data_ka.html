@@ -3,124 +3,105 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock %}
 {% block content %}
-<h2 class="ps-2 fw-lighter">Data Kualitas Air (<b>{{ ctx.poses|length}}</b>)</h2>
+<h2 class="ps-2 fw-lighter">Data Kualitas Air</h2>
 <div class="row">
     <div class="col">
-        <div class="text-end mb-3">
-            <a href="?s={{ ctx._sampling.strftime('%Y-%m-%d')}}" class="btn btn-outline-primary me-5">{{ ctx._sampling.strftime('%b %Y')}} <i class="bi bi-chevron-left"></i></a> 
-            <span class="fs-3">{{ ctx.sampling.strftime('%Y')}}</span> 
-            {% if ctx.sampling_ %}<a class="btn btn-outline-primary ms-5" href="?s={{ ctx.sampling_.strftime('%Y-%m-%d')}}"><i class="bi bi-chevron-right"></i> {{ ctx.sampling_.strftime('%b %Y')}}</a>
-            {% else %}<button class="btn btn-outline-secondary ms-5 disabled" aria-disabled="true">-</button>{% endif %}</span>
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="?tahun={{ ctx.tahun - 1 }}" class="btn btn-outline-primary">
+                        <i class="bi bi-chevron-left"></i> {{ ctx.tahun - 1 }}
+                    </a>
+                    <span class="fs-4 mx-3"><strong>{{ ctx.tahun }}</strong></span>
+                    {% if ctx.tahun < ctx.now.year %}<a href="?tahun={{ ctx.tahun + 1 }}" class="btn btn-outline-primary">
+                        {{ ctx.tahun + 1 }} <i class="bi bi-chevron-right"></i>
+                    </a>{% endif %}
+                </div>
+                <a href="/pos/ka/add?tahun={{ ctx.tahun }}" class="btn btn-primary">
+                    <i class="bi bi-plus"></i> Tambah Data Kualitas Air
+                </a>
+            </div>
         </div>
+
         {% with messages = get_flashed_messages() %}
         {% if messages %}
-          <ul>
+          <ul class="alert alert-danger">
             {% for message in messages %}
-              <li class="text-danger">{{ message }}</li>
+              <li>{{ message }}</li>
             {% endfor %}
           </ul>
         {% endif %}
-      {% endwith %}
+        {% endwith %}
 
-        <p class="text-secondary">
-            {% if ctx.hasil_uji %}
-                Terdapat <strong>{{ ctx.hasil_uji|length }}</strong> hasil uji kualitas air.
-                {% for h in ctx.hasil_uji %}
-                    {{ h }}
-                {% endfor %}
-            {% else %}
-                Tidak ada hasil uji kualitas air untuk periode ini.
-            {% endif %}
-        </p>
-        <div class="table-responsive">
+        {% if ctx.data_ka %}
+        <div class="table-responsive mt-4">
             <table class="table table-striped table-hover table-bordered">
-                <thead>
+                <thead class="table-light">
+                    <!-- Row 1: Periode Headers with colspan (only for periodes with data) -->
                     <tr>
-                        <th>Lokasi <span class="float-end text-secondary">ID</span></th>
-                        <th>Sungai</th>
-                        {% for i in range(6) %}{% set bulan = ctx.sampling.replace(month=ctx.sampling.month + i) %}
-                        <th>{{ bulan.strftime('%b') }}</th>
+                        <th rowspan="2">No</th>
+                        <th rowspan="2">Lokasi</th>
+                        <th rowspan="2">Sungai</th>
+                        <th rowspan="2">Kab/Kota</th>
+                        {% for periode in ctx.periode_with_data %}
+                        <th colspan="3" class="text-center">Periode {{ periode }} ({{ ctx.periode_months[periode] }})</th>
                         {% endfor %}
-                        
+                    </tr>
+                    <!-- Row 2: PI, Status, Aksi subheaders -->
+                    <tr>
+                        {% for periode in ctx.periode_with_data %}
+                        <th class="text-center">PIⱼ</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Aksi</th>
+                        {% endfor %}
                     </tr>
                 </thead>
-                <tbody class="table-group-divider">
-                {% for s, poses in ctx.sungai.items() %}
-                {% if poses[0].orde == 1 %}
-                {% set orde_color = "rgb(31, 86, 181)" %}
-                {% elif poses[0].orde == 2 %}
-                {% set orde_color = "rgb(62, 131, 250)" %}
-                {% elif poses[0].orde == 3 %}
-                {% set orde_color = "rgb(157, 229, 252)" %}
-                {% endif %}
-                    {% for p in poses %}
+                <tbody>
+                    {% for item in ctx.data_ka %}
                     <tr>
-                        <td><span class="ms-1">{{ p.nama }}</span> <span class="float-end text-secondary">{{ p.id }}</span></td>
-                        <td style="color: {{ orde_color }}">{{ p.sungai }}</td>
-                        {% for i in range(6) %}
-                        {% set k = '{}_{}'.format(p.id, i + ctx.sampling.month) %}
-                        {% set hu = ctx.hasil_uji.get(k) %}
-                        <td class="text-center">
-                        {% if hu %}
-                        <div class="dropdown">
-                            <a class="icon-link" data-bs-toggle="dropdown" aria-expanded="false" role="button">
-                                <i class="bi bi-file-earmark-richtext"></i>
-                                <i class="bi bi-caret-down-fill ms-1"></i>
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li>
-                                    <a href="/static/ka/{{ hu.sampling.strftime("_%Y/_%m/") + hu.doc_path }}" class="dropdown-item"><i class="bi bi-download me-2" title="{{ hu.sampling }}"></i> Download</a>
-                                </li>
-                                <li class="dropdown-divider"></li>
-                                <li>
-                                    <a href="#" onclick="confirmDel({{ hu.id }}, '{{ hu.pos.nama }}')" class="dropdown-item">
-                                        <i class="bi bi-trash me-2 text-danger" title="{{ hu.sampling }}"></i> Hapus?
+                        <td>{{ loop.index }}</td>
+                        <td>{{ item.lokasi }}</td>
+                        <td>{{ item.sungai or '-' }}</td>
+                        <td>{{ item.kota_kabupaten or '-' }}</td>
+                        
+                        <!-- Loop through periode dengan data -->
+                        {% for periode in ctx.periode_with_data %}
+                            {% if periode in item.periode %}
+                                <!-- Periode has data -->
+                                <td class="text-center">{{ item.periode[periode].pi }}</td>
+                                <td class="text-center">
+                                    {% if item.periode[periode].status == 'cemar sedang' %}
+                                    <span class="badge" style="background-color: #fd7e14; color: white; font-size: 0.75rem;">{{ item.periode[periode].status }}</span>
+                                    {% else %}
+                                    <span class="badge bg-{{ item.periode[periode].color }} badge-sm">{{ item.periode[periode].status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <a href="/pos/ka/edit/{{ item.periode[periode].id }}" class="btn btn-xs btn-primary" title="Edit" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                        <i class="bi bi-pencil"></i>
                                     </a>
-                                </li>
-                            </ul>
-                            
-
-                        </div>
-                    {% else %}
-                            <a href="/pos/ka/add?pid={{ p.id }}&s={{ ctx.sampling.year }}-{{ ctx.sampling.month + i }}" class="float-end"><i class="bi bi-plus" title="Tambah Hasil Uji {{ p.nama }}"></i></a>
-                        {% endif %}
-                        </td>
+                                    <a href="/pos/ka/detail/{{ item.lokasi }}?tahun={{ ctx.tahun }}" class="btn btn-xs btn-info" title="Detail" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            {% else %}
+                                <!-- Periode no data -->
+                                <td class="text-center text-muted">-</td>
+                                <td class="text-muted">-</td>
+                                <td class="text-muted">-</td>
+                            {% endif %}
                         {% endfor %}
                     </tr>
                     {% endfor %}
-                {% endfor %}
                 </tbody>
             </table>
-            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info mt-4">
+            <p>Tidak ada data kualitas air untuk tahun <strong>{{ ctx.tahun }}</strong></p>
+        </div>
+        {% endif %}
     </div>
 </div>
-<script>
-    const confirmDel = (id, title) => {
-        if (confirm(`Pilih Ok untuk menghapus Hasil Uji "${title}"`)) {
-            fetch(`/pos/ka/delete/${id}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                },
-                body: JSON.stringify({ id })
-            })
-            .then(resp => {
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                return resp.json().catch(() => ({}));
-            })
-            .then(data => {
-                // on success, refresh the page (or remove the row from DOM)
-                location.reload();
-            })
-            .catch(err => {
-                alert('Gagal menghapus: ' + err.message);
-            });
-            console.log('hapus', id);
-        } else {
-            console.log('batal');
-        }
-    }
-</script>
+
 {% endblock %}

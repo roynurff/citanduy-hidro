@@ -15,6 +15,28 @@ NUM_DAYS = (31,28,31,30,31,30,31,31,30,31,30,31)
 
 SUNGAI_LIST = 'Citanduy_Ciseel_Cibeureum_Cijolang_Cileueur'.split('_')
 #PCH_MAP = dict([(44, 'PCH Ciamis'), (45, 'PCH Cibariwal')])
+
+# 17 parameter definition constant
+PARAMETER_LIST = [
+    {'name': 'Temperatur', 'satuan': '°C', 'required': True},
+    {'name': 'Padatan Terlarut Total (TDS)', 'satuan': 'mg/L', 'required': True},
+    {'name': 'Padatan Tersuspensi Total (TSS)', 'satuan': 'mg/L', 'required': False},
+    {'name': 'Derajat Keasaman (pH)', 'satuan': '-', 'required': True},
+    {'name': 'Kebutuhan Oksigen Biokimiawi (BOD)', 'satuan': 'mg/L', 'required': True},
+    {'name': 'Kebutuhan Oksigen Kimiawi (COD)', 'satuan': 'mg/L', 'required': True},
+    {'name': 'Oksigen Terlarut (DO)', 'satuan': 'mg/L', 'required': True},
+    {'name': 'Nitrat (sebagai N)', 'satuan': 'mg/L', 'required': True},
+    {'name': 'Nitrit (sebagai N)', 'satuan': 'mg/L', 'required': True},
+    {'name': 'Total Fosfat (Sebagai P)', 'satuan': 'mg/L', 'required': False},
+    {'name': 'Kadmium (Cd) Terlarut', 'satuan': 'mg/L', 'required': False},
+    {'name': 'Seng (Zn) Terlarut', 'satuan': 'mg/L', 'required': True},
+    {'name': 'Tembaga (Cu) Terlarut', 'satuan': 'mg/L', 'required': False},
+    {'name': 'Deterjen Total', 'satuan': 'mg/L', 'required': False},
+    {'name': 'Fecal Coliform', 'satuan': 'MPN/100mL', 'required': True},
+    {'name': 'Total Coliform', 'satuan': 'MPN/100mL', 'required': True},
+    {'name': 'Kekeruhan', 'satuan': 'NTU', 'required': False},
+]
+
 VENDORS = {
     'SA': {
         'nama': 'Arindo'
@@ -659,6 +681,27 @@ class ManualDaily(BaseModel):
             (('pos', 'sampling'), True),
         )
         
+class ManualKlim(BaseModel): #new class for manual klimatologi
+    pos = pw.ForeignKeyField(Pos, backref='manualklim_set')
+    username = pw.CharField(max_length=20)
+    sampling = pw.DateField()
+    jam = pw.SmallIntegerField()  # 7, 13, 18
+    ch = pw.FloatField(null=True)
+    temp_min = pw.FloatField(null=True)
+    temp_max = pw.FloatField(null=True)
+    kelembaban = pw.FloatField(null=True)
+    kec_angin = pw.FloatField(null=True)
+    arah_angin = pw.FloatField(null=True)
+    lama_penyinaran = pw.FloatField(null=True)
+    penguapan = pw.FloatField(null=True)
+    cdate = pw.DateTimeField(default=datetime.datetime.now)
+    mdate = pw.DateTimeField(null=True)
+
+    class Meta:
+        indexes = (
+            (('pos', 'sampling', 'jam'), True),  # unique
+        )
+
 class LengkungDebit(BaseModel):
     pos = pw.ForeignKeyField(Pos)
     versi = pw.DateField()
@@ -677,26 +720,96 @@ class UserQuery(BaseModel):
     reaction = pw.CharField(max_length=1, null=True)
 
 
+class LokasiMaster(BaseModel):
+    '''Master Data Lokasi Pengambilan Sampel'''
+    nama_lokasi = pw.CharField(max_length=100, unique=True, index=True)  # Nama lokasi (e.g., Gunungcupu)
+    sungai = pw.CharField(max_length=100, null=True)  # Nama sungai
+    kota_kabupaten = pw.CharField(max_length=50, null=True)  # Kota/Kabupaten
+    koordinat = pw.CharField(max_length=100, null=True)  # Koordinat (Lon,Lat)
+    cdate = pw.DateTimeField(default=datetime.datetime.now)
+    mdate = pw.DateTimeField(null=True)
+    
+    class Meta:
+        table_name = 'lokasi_master'
+        indexes = (
+            (('nama_lokasi',), True),
+        )
+
+
 class HasilUjiKualitasAir(BaseModel):
     '''Hasil Uji Kualitas Air'''
     pos = pw.ForeignKeyField(Pos, null=True)
+    lokasi_master = pw.ForeignKeyField(LokasiMaster, null=True)  # Reference ke LokasiMaster
+    lokasi = pw.CharField(max_length=100, null=True) # lokasi pengambilan sampel (manual input fallback)
+    sungai = pw.CharField(max_length=100, null=True) # nama sungai (Citanduy, Cimuntur, dll)
+    kota_kabupaten = pw.CharField(max_length=50, null=True) # kota/kabupaten
     sampling = pw.DateField() # tanggal pengambilan sampel
+    periode = pw.IntegerField(null=True) # periode 1, 2, atau 3
+    bulan_periode = pw.IntegerField(null=True) # bulan periode (misal 4=April, 7=Juli, 10=Oktober)
     ll = pw.CharField(max_length=60, null=True) # koordinat pengambilan sample
-    doc_path = pw.CharField(null=True) # path file yang diupload '/static/ka/_tahun/_bulan'
+    pi = pw.FloatField(null=True) # Indeks Pencemaran
+    kelas_baku_mutu = pw.IntegerField(default=2)  # Kelas Baku Mutu (default=2)
+    keterangan = pw.TextField(null=True) # Keterangan/deskripsi hasil uji
+    doc_path = pw.CharField(null=True) # path file hasil uji '/static/ka/_tahun/_bulan'
+    foto_path = pw.CharField(null=True) # path file foto dokumentasi '/static/ka/_tahun/_bulan'
     lembaga = pw.CharField(max_length=50, null=True) # nama lab
     username = pw.CharField(max_length=20, null=True) # username yang upload
     cdate = pw.DateTimeField(default=datetime.datetime.now)
-    status_hasil_uji = pw.CharField(max_length=20, null=True) # 'memenuhi', 'cemar ringan', 'cemar sedang', 'cemar berat'
+    mdate = pw.DateTimeField(null=True) # tanggal modifikasi terakhir
 
     @property
-    def show_icon(self):
-        icon_map = {
-            'memenuhi': '✅',
-            'cemar ringan': '⚠️',
-            'cemar sedang': '❗',
-            'cemar berat': '🚫'
+    def status_hasil_uji(self):
+        '''Determine status otomatis berdasarkan PI value'''
+        if self.pi is None:
+            return None
+        if self.pi <= 1:
+            return 'memenuhi baku mutu'
+        elif self.pi <= 5:
+            return 'cemar ringan'
+        elif self.pi <= 10:
+            return 'cemar sedang'
+        else:
+            return 'cemar berat'
+
+    @property
+    def color_status(self):
+        '''Return color class for status badge'''
+        status_color = {
+            'memenuhi baku mutu': 'success',  # green
+            'cemar ringan': 'warning',         # yellow
+            'cemar sedang': 'orange',         # menggunakan warning, styling via template
+            'cemar berat': 'danger'            # red
         }
-        return icon_map.get(self.status_hasil_uji.lower(), '')
+        return status_color.get(self.status_hasil_uji, 'secondary')
+    
+    @property
+    def display_status_html(self):
+        '''Return HTML formatted status with color block'''
+        status_colors = {
+            'memenuhi baku mutu': '#198754',  # green
+            'cemar ringan': '#ffc107',        # yellow
+            'cemar sedang': '#fd7e14',        # orange
+            'cemar berat': '#dc3545'          # red
+        }
+        color = status_colors.get(self.status_hasil_uji, '#6c757d')
+        return f'<span style="background-color: {color}; color: white; padding: 4px 8px; border-radius: 4px;">{self.status_hasil_uji}</span>'
+
+
+class ParameterDetail(BaseModel):
+    '''Detail Parameter Hasil Uji Kualitas Air'''
+    hasil_uji = pw.ForeignKeyField(HasilUjiKualitasAir, backref='parameter_details')
+    parameter_name = pw.CharField(max_length=100)  # e.g., Temperatur, pH, BOD, dll
+    satuan = pw.CharField(max_length=50, null=True)  # e.g., °C, mg/L, NTU, dll
+    nilai = pw.CharField(max_length=50, null=True)  # Hasil uji value (e.g., 24, 7.1, <1)
+    cdate = pw.DateTimeField(default=datetime.datetime.now)
+    mdate = pw.DateTimeField(null=True)
+    
+    class Meta:
+        table_name = 'parameter_detail'
+        indexes = (
+            (('hasil_uji', 'parameter_name'), True),
+        )
+
 
 class Forecast(BaseModel):
     pass

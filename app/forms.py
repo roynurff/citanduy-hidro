@@ -49,16 +49,18 @@ class KlimatForm(FlaskForm):
     
 class HasilUjiKAForm(FlaskForm):
     pos = HiddenField('pos_id')
-    sampling = HiddenField('sampling')
+    sampling = DateField('sampling', validators=[DataRequired()])
+    lokasi = StringField('lokasi')
+    sungai = StringField('sungai')
+    kota_kabupaten = StringField('kota_kabupaten')
     ll = StringField('ll')
-    fname = StringField('fname')
+    pi = FloatField('pi', validators=[DataRequired()])
+    kelas_baku_mutu = SelectField('kelas_baku_mutu', choices=[(1, 'Kelas 1'), (2, 'Kelas 2'), (3, 'Kelas 3'), (4, 'Kelas 4')], default='2', validators=[DataRequired()])
+    keterangan = StringField('keterangan')
+    periode = SelectField('periode', choices=[(1, 'Periode I'), (2, 'Periode II'), (3, 'Periode III')], validators=[DataRequired()])
     lembaga = StringField('lembaga')
-    status_hasil_uji = SelectField('status_hasil_uji', 
-                                   choices=[
-                                       ('memenuhi', 'memenuhi'),
-                                       ('cemar ringan', 'cemar ringan'),
-                                       ('cemar sedang', 'cemar sedang'),
-                                       ('cemar berat', 'cemar berat')])
+    fname = StringField('fname')
+    foto = FileField('foto', validators=[FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDF only!')])
     
 
 class PublikasiForm(FlaskForm):

@@ -1,0 +1,457 @@
+{% extends 'base.html' %}
+{% block extra_head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+    .parameter-table tbody tr:hover { background-color: rgba(13, 110, 253, 0.075); }
+    .param-value-cell { cursor: pointer; padding: 8px; }
+    .param-value-cell:hover { background-color: #f0f0f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <h2 class="fw-lighter">
+            {% if ctx.edit_mode %}Edit Data Hasil Uji Kualitas Air
+            {% else %}Tambah Data Hasil Uji Kualitas Air{% endif %}
+        </h2>
+        <p class="text-secondary">Tahun: <strong>{{ ctx.tahun }}</strong></p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-9">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul class="alert alert-danger">
+                {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+        {% endwith %}
+
+        {% if ctx.edit_mode %}
+        <form action="/pos/ka/edit/{{ ctx.record.id }}?tahun={{ ctx.tahun }}" method="POST" enctype="multipart/form-data" id="mainForm">
+        {% else %}
+        <form action="/pos/ka/add?tahun={{ ctx.tahun }}" method="POST" enctype="multipart/form-data" id="mainForm">
+        {% endif %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="parameters_json" id="parametersJson" value="{}">
+            <input type="hidden" name="lokasi_id" id="lokasiIdHidden">
+
+            <!-- SECTION 1: Lokasi -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Lokasi Pengambilan Sampel</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Pilih Lokasi <span class="text-danger">*</span></label>
+                        <input type="text" name="lokasi_nama" id="lokasiInput"
+                            class="form-control"
+                            list="lokasiDatalist"
+                            placeholder="Ketik nama lokasi..."
+                            value="{{ ctx.record.lokasi if ctx.edit_mode and ctx.record else '' }}"
+                            autocomplete="off">
+                        <datalist id="lokasiDatalist"></datalist>
+                        <small class="text-muted d-block mt-1">
+                            Ketik untuk mencari lokasi yang sudah ada. Jika belum ada, ketik nama baru lalu klik 
+                            <strong>Simpan Lokasi Baru</strong>.
+                        </small>
+                    </div>
+
+                    <!-- Tombol simpan lokasi baru, muncul kalau input tidak cocok dengan datalist -->
+                    <div id="newLokasiPrompt" class="alert alert-warning d-none">
+                        <strong id="newLokasiName"></strong> belum ada di database.
+                        <button type="button" class="btn btn-sm btn-warning ms-2" onclick="saveNewLokasi()">
+                            + Simpan Lokasi Baru
+                        </button>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Sungai</label>
+                            <input type="text" name="sungai" id="sungaiField" class="form-control"
+                                placeholder="Nama sungai"
+                                value="{{ ctx.record.sungai if ctx.edit_mode and ctx.record else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Kota/Kabupaten</label>
+                            <input type="text" name="kota_kabupaten" id="kabupatenField" class="form-control"
+                                placeholder="Kota/Kabupaten"
+                                value="{{ ctx.record.kota_kabupaten if ctx.edit_mode and ctx.record else '' }}">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Koordinat (Lon,Lat)</label>
+                        <input type="text" name="ll" id="koordinatField" class="form-control"
+                            placeholder="107.123,-7.456"
+                            value="{{ ctx.record.ll if ctx.edit_mode and ctx.record else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Tanggal & Periode -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Tanggal & Periode Sampling</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tanggal Pengambilan Sampel <span class="text-danger">*</span></label>
+                            {{ ctx.form.sampling(class_="form-control")|safe }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Periode <span class="text-danger">*</span></label>
+                            {{ ctx.form.periode(class_="form-control")|safe }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 3: Hasil Analisis -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Hasil Analisis & Keterangan</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Lembaga Lab</label>
+                            {{ ctx.form.lembaga(class_="form-control", placeholder="UPTD Lab LH Jawa Barat")|safe }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Indeks Pencemaran (PI) <span class="text-danger">*</span></label>
+                            {{ ctx.form.pi(class_="form-control", step="0.01", placeholder="0.5")|safe }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Kelas Baku Mutu <span class="text-danger">*</span></label>
+                            {{ ctx.form.kelas_baku_mutu(class_="form-control")|safe }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Keterangan/Deskripsi</label>
+                        {{ ctx.form.keterangan(class_="form-control", rows="3", placeholder="Kondisi air, pengamatan lapangan, dll")|safe }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: Foto Dokumentasi -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Foto Dokumentasi</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        {{ ctx.form.foto(class_="form-control")|safe }}
+                        <small class="text-secondary">Format: JPG, PNG, PDF</small>
+                    </div>
+                    {% if ctx.edit_mode and ctx.record and ctx.record.foto_path %}
+                    <div class="mt-2">
+                        <small class="text-muted">Foto saat ini: <strong>{{ ctx.record.foto_path }}</strong></small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- SECTION 5: Parameter -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-table"></i> Data Parameter (17 Parameter — Klik untuk Edit)
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover parameter-table mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="45%">Parameter</th>
+                                    <th width="15%">Satuan</th>
+                                    <th width="40%">Nilai</th>
+                                </tr>
+                            </thead>
+                            <tbody id="parameterTableBody" x-data="parameterTable">
+                                <template x-for="(param, idx) in parameters" :key="idx">
+                                    <tr>
+                                        <td><span x-text="param.name"></span></td>
+                                        <td><span class="text-muted" x-text="param.satuan || '-'"></span></td>
+                                        <td class="param-value-cell"
+                                            @click="editParameter(idx)"
+                                            :class="param.nilai ? 'text-dark' : 'text-muted fst-italic'"
+                                            x-text="param.nilai || 'klik untuk isi'">
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info m-3 mb-2">
+                        <i class="bi bi-info-circle"></i>
+                        <small>Klik pada kolom nilai untuk mengedit. Parameter wajib harus diisi sebelum menyimpan.</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="d-flex gap-2 mb-5">
+                {% if ctx.edit_mode %}
+                <button type="submit" class="btn btn-primary">Perbarui Data</button>
+                <button type="button" class="btn btn-danger"
+                    onclick="confirmDelete({{ ctx.record.id }}, '{{ ctx.record.lokasi }}')">
+                    <i class="bi bi-trash"></i> Hapus Data
+                </button>
+                {% else %}
+                <button type="submit" class="btn btn-primary">Simpan Data</button>
+                {% endif %}
+                <a href="/pos/ka?tahun={{ ctx.tahun }}" class="btn btn-secondary">Kembali</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal edit parameter -->
+<div class="modal fade" id="parameterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="parameterModalTitle">Edit Parameter</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" id="parameterModalLabel"></label>
+                    <input type="text" class="form-control" id="parameterModalInput">
+                    <small class="text-muted d-block mt-1" id="parameterModalSatuan"></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="parameterModalSave">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data dari Flask -->
+<script>
+const PARAMETER_LIST = {{ ctx.parameter_list | tojson | safe }};
+const EDIT_MODE = {{ 'true' if ctx.edit_mode else 'false' }};
+const EXISTING_VALUES = {{ ctx.parameter_values | tojson | safe }};
+const EXISTING_LOKASI_ID = {{ ctx.lokasi_master_id | tojson | safe }};
+const EXISTING_LOKASI_NAMA = {{ ctx.lokasi_nama | tojson | safe }};
+</script>
+
+<!-- Alpine.js component — harus sebelum load Alpine -->
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('parameterTable', () => ({
+        parameters: PARAMETER_LIST.map(p => {
+            let nilai = null;
+            if (EDIT_MODE && EXISTING_VALUES.length > 0) {
+                const found = EXISTING_VALUES.find(ev => ev.parameter_name === p.name);
+                if (found) nilai = found.nilai;
+            }
+            return {
+                name: p.name || '',
+                satuan: p.satuan || '',
+                required: p.required !== false,
+                nilai: nilai
+            };
+        }),
+        currentEditIdx: null,
+
+        editParameter(idx) {
+            this.currentEditIdx = idx;
+            const param = this.parameters[idx];
+            document.getElementById('parameterModalTitle').textContent = 'Edit: ' + param.name;
+            document.getElementById('parameterModalLabel').textContent = param.name;
+            document.getElementById('parameterModalSatuan').textContent = 'Satuan: ' + (param.satuan || '-');
+            document.getElementById('parameterModalInput').value = param.nilai || '';
+
+            const modalEl = document.getElementById('parameterModal');
+            const bsModal = new bootstrap.Modal(modalEl);
+            bsModal.show();
+            modalEl.addEventListener('shown.bs.modal', () => {
+                document.getElementById('parameterModalInput').focus();
+            }, { once: true });
+        },
+
+        saveParameterValue() {
+            const idx = this.currentEditIdx;
+            if (idx === null) return;
+            const value = document.getElementById('parameterModalInput').value.trim();
+            this.parameters[idx].nilai = value || null;
+            this.updateParametersJson();
+            const bsModal = bootstrap.Modal.getInstance(document.getElementById('parameterModal'));
+            if (bsModal) bsModal.hide();
+        },
+
+        updateParametersJson() {
+            const obj = {};
+            this.parameters.forEach(p => { obj[p.name] = p.nilai; });
+            document.getElementById('parametersJson').value = JSON.stringify(obj);
+        },
+
+        init() {
+            // Trigger save dari luar Alpine
+            this.$el.addEventListener('triggerSave', () => this.saveParameterValue());
+
+            // Validasi + update JSON sebelum submit
+            document.getElementById('mainForm').addEventListener('submit', (e) => {
+                this.updateParametersJson();
+                const missing = this.parameters
+                    .filter(p => p.required && !p.nilai)
+                    .map(p => p.name);
+                if (missing.length > 0) {
+                    e.preventDefault();
+                    alert('⚠️ Parameter wajib belum diisi:\n\n' + missing.join('\n'));
+                }
+            }, { capture: true });
+        }
+    }));
+});
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    // ===== Datalist lokasi =====
+    let lokasiMap = {}; // nama → id
+
+    fetch('/api/lokasi/list')
+        .then(r => r.json())
+        .then(data => {
+            const datalist = document.getElementById('lokasiDatalist');
+            (data.results || []).forEach(loc => {
+                lokasiMap[loc.nama_lokasi] = loc.id;
+                const opt = document.createElement('option');
+                opt.value = loc.nama_lokasi;
+                datalist.appendChild(opt);
+            });
+
+            // Edit mode: pre-fill lokasi_id jika nama cocok
+            if (EDIT_MODE && EXISTING_LOKASI_NAMA) {
+                const id = lokasiMap[EXISTING_LOKASI_NAMA];
+                if (id) document.getElementById('lokasiIdHidden').value = id;
+            }
+        });
+
+    // Saat user memilih/mengetik lokasi
+    document.getElementById('lokasiInput').addEventListener('input', function() {
+        const val = this.value.trim();
+        const id = lokasiMap[val];
+        const prompt = document.getElementById('newLokasiPrompt');
+
+        if (id) {
+            // Lokasi sudah ada → auto-fill dan simpan id
+            document.getElementById('lokasiIdHidden').value = id;
+            loadLokasiDetail(id);
+            prompt.classList.add('d-none');
+        } else if (val.length > 2) {
+            // Lokasi belum ada → tampilkan prompt simpan baru
+            document.getElementById('lokasiIdHidden').value = '';
+            document.getElementById('newLokasiName').textContent = val;
+            prompt.classList.remove('d-none');
+        } else {
+            prompt.classList.add('d-none');
+            document.getElementById('lokasiIdHidden').value = '';
+        }
+    });
+
+    // Modal parameter: tombol simpan
+    document.getElementById('parameterModalSave').addEventListener('click', function() {
+        document.getElementById('parameterTableBody')
+            .dispatchEvent(new CustomEvent('triggerSave'));
+    });
+
+    // Modal parameter: Enter untuk simpan
+    document.getElementById('parameterModalInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('parameterModalSave').click();
+    });
+});
+
+// Auto-fill sungai, kab, koordinat dari master
+function loadLokasiDetail(lokasiId) {
+    fetch(`/api/lokasi/get/${lokasiId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                if (data.sungai) document.getElementById('sungaiField').value = data.sungai;
+                if (data.kota_kabupaten) document.getElementById('kabupatenField').value = data.kota_kabupaten;
+                if (data.koordinat) document.getElementById('koordinatField').value = data.koordinat;
+            }
+        })
+        .catch(err => console.error('loadLokasiDetail error:', err));
+}
+
+// Simpan lokasi baru ke database
+function saveNewLokasi() {
+    const nama = document.getElementById('lokasiInput').value.trim();
+    const sungai = document.getElementById('sungaiField').value.trim();
+    const kab = document.getElementById('kabupatenField').value.trim();
+    const koordinat = document.getElementById('koordinatField').value.trim();
+
+    if (!nama) { alert('Nama lokasi tidak boleh kosong'); return; }
+
+    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    fetch('/api/lokasi/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ nama_lokasi: nama, sungai, kota_kabupaten: kab, koordinat })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            // Tambah ke datalist dan lokasiMap
+            lokasiMap[data.nama_lokasi] = data.id;
+            const opt = document.createElement('option');
+            opt.value = data.nama_lokasi;
+            document.getElementById('lokasiDatalist').appendChild(opt);
+
+            // Set hidden id
+            document.getElementById('lokasiIdHidden').value = data.id;
+            document.getElementById('newLokasiPrompt').classList.add('d-none');
+
+            alert(`Lokasi "${data.nama_lokasi}" berhasil disimpan!`);
+        } else {
+            alert('Gagal: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(() => alert('Gagal menyimpan lokasi baru'));
+}
+
+// Hapus data hasil uji
+function confirmDelete(id, lokasi) {
+    if (!confirm(`Hapus data Kualitas Air "${lokasi}"?\nTindakan ini tidak dapat dibatalkan.`)) return;
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    fetch(`/pos/ka/delete/${id}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': csrf
+        },
+        body: JSON.stringify({ id })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            alert('Data berhasil dihapus');
+            window.location.href = '/pos/ka?tahun={{ ctx.tahun }}';
+        } else {
+            alert('Gagal: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(err => alert('Gagal menghapus: ' + err.message));
+}
+</script>
+
+{% endblock %}

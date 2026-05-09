@@ -18,41 +18,86 @@ def map():
 
 @bp.route('/')
 def index():
-    (_sampling, sampling, sampling_) = get_sampling(request.args.get('s', None))
-    poska = Pos.select().where(Pos.tipe=='4').order_by(Pos.sungai)
-    if sampling.month < 7:
-        sampling = sampling.replace(month=1)
-        _sampling = _sampling.replace(month=7, year=sampling.year - 1)
-        if sampling_:
-            sampling_ = sampling_.replace(month=7)
-    else:
-        sampling = sampling.replace(month=7)
-        _sampling = _sampling.replace(month=1)
-        if sampling_:
-            sampling_ = sampling_.replace(month=1, year=sampling.year + 1)
-    sungai = set([p.sungai for p in poska])
-    months = [sampling.month + m for m in range(6)]
-    huka = (HasilUjiKualitasAir.select()
-            .where(HasilUjiKualitasAir.sampling.year==sampling.year,
-                   HasilUjiKualitasAir.sampling.month.in_(months))
-            .order_by(HasilUjiKualitasAir.sampling))
-    hasil_uji = {}
-    for hu in huka:
-        hasil_uji.update({'{}_{}'.format(hu.pos_id, hu.sampling.month):  hu})
+    tahun = request.args.get('tahun', datetime.date.today().year, type=int)
     
-    out = {}
-    for s in sungai:
-        out.update({s: [p for p in poska if p.sungai==s]})
-    sampling = sampling.replace(day=1)
+    # Get all data untuk tahun ini
+    all_data = (HasilUjiKualitasAir.select()
+                .where(HasilUjiKualitasAir.sampling.year == tahun)
+                .order_by(HasilUjiKualitasAir.sampling))
+    
+    # Organize data by bulan (month)
+    bulan_data = {}
+    bulan_names = {
+        1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April', 5: 'Mei', 6: 'Juni',
+        7: 'Juli', 8: 'Agustus', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'
+    }
+    
+    for hu in all_data:
+        bulan = hu.sampling.month
+        if bulan not in bulan_data:
+            bulan_data[bulan] = {
+                'bulan': bulan_names[bulan],
+                'bulan_num': bulan,
+                'periode': hu.periode,
+                'data': [],
+                'count_total': 0,
+                'count_memenuhi': 0,
+                'count_cemar_ringan': 0,
+                'count_cemar_sedang': 0,
+                'count_cemar_berat': 0,
+                'sampling_date': hu.sampling
+            }
+        
+        bulan_data[bulan]['data'].append(hu)
+        bulan_data[bulan]['count_total'] += 1
+        
+        # Count status
+        if hu.status_hasil_uji == 'memenuhi baku mutu':
+            bulan_data[bulan]['count_memenuhi'] += 1
+        elif hu.status_hasil_uji == 'cemar ringan':
+            bulan_data[bulan]['count_cemar_ringan'] += 1
+        elif hu.status_hasil_uji == 'cemar sedang':
+            bulan_data[bulan]['count_cemar_sedang'] += 1
+        elif hu.status_hasil_uji == 'cemar berat':
+            bulan_data[bulan]['count_cemar_berat'] += 1
+    
+    # Sort by bulan
+    bulan_list = sorted(bulan_data.values(), key=lambda x: x['bulan_num'])
+    
     ctx = {
-        '_sampling': _sampling,
-        'sampling': sampling,
-        'sampling_': sampling_,
-        'poses': poska,
-        'sungai': out,
-        'hasil_uji': huka
+        'tahun': tahun,
+        'now': datetime.date.today(),
+        'bulan_data': bulan_list,
+        'bulan_names': bulan_names
     }
     return render_template('pka/index.html', ctx=ctx)
+
+@bp.route('/publikasi/<int:bulan>')
+def publikasi(bulan):
+    tahun = request.args.get('tahun', datetime.date.today().year, type=int)
+    
+    # Get data untuk bulan dan tahun tertentu
+    data_ka = (HasilUjiKualitasAir.select()
+               .where(HasilUjiKualitasAir.sampling.year == tahun,
+                      HasilUjiKualitasAir.sampling.month == bulan)
+               .order_by(HasilUjiKualitasAir.lokasi, HasilUjiKualitasAir.sampling))
+    
+    if not data_ka:
+        abort(404)
+    
+    bulan_names = {
+        1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April', 5: 'Mei', 6: 'Juni',
+        7: 'Juli', 8: 'Agustus', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'
+    }
+    
+    ctx = {
+        'tahun': tahun,
+        'bulan': bulan,
+        'bulan_nama': bulan_names[bulan],
+        'now': datetime.date.today(),
+        'data': data_ka
+    }
+    return render_template('pka/publikasi.html', ctx=ctx)
 
 
 '''

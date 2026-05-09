@@ -421,11 +421,12 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                                 tma_now = 0
                                 num_data = 0
                                 for k, v in r._24jam().items():
-                                    wlevel = v.get('wlevel', None)
-                                    if wlevel:
+                                    wlevel = v.get('wlevel')
+                                    if wlevel is not None:
                                         tma_now += wlevel
                                         num_data += 1 
-                                    row.append(round(v.get('wlevel') * 0.01, 2))
+                                    # row.append(round(v.get('wlevel') * 0.01, 2))
+                                    row.append(round(wlevel * 0.01, 2) if wlevel is not None else None) #fix error download pda
                                 rerata = round((tma_now / num_data if num_data > 0 else 0), 2)
                                 row.append(round(rerata, 1))
                                 telemetri.append(row)
@@ -501,7 +502,9 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                     df_man = pd.DataFrame(manual, columns=['nama', 'kabupaten', 'sampling', 'M07', 'M12', 'M17'])
                     
                     kolom_target = ['T07', 'T12', 'T17']
-                    df_tele[kolom_target] = df_tele[kolom_target].apply(pd.to_numeric, errors='coerce').astype('Int64')
+                    # df_tele[kolom_target] = df_tele[kolom_target].apply(pd.to_numeric, errors='coerce').astype('Int64')
+                    df_tele[kolom_target] = df_tele[kolom_target].apply(pd.to_numeric, errors='coerce')
+                    df_tele[kolom_target] = df_tele[kolom_target].where(df_tele[kolom_target].notna(), other=pd.NA).astype('Int64')
                     
                 df_tele['sampling'] = pd.to_datetime(df_tele['sampling'])
                 df_man['sampling'] = pd.to_datetime(df_man['sampling'])
@@ -766,6 +769,7 @@ def register_bluprint(app):
     from app.kinerja import bp as bp_kinerja
     from app.api import bp as bp_api
     from app.api.rainfall import bp as bp_rainfall
+    from app.api_lokasi import bp as bp_api_lokasi
     from app.note import bp as bp_note
     from app.publikasi import bp as bp_publikasi
     from app.ticket import bp as bp_ticket
@@ -784,6 +788,7 @@ def register_bluprint(app):
     app.register_blueprint(bp_kinerja)
     app.register_blueprint(bp_api)
     app.register_blueprint(bp_rainfall)
+    app.register_blueprint(bp_api_lokasi)
     app.register_blueprint(bp_note)
     app.register_blueprint(bp_publikasi)
     app.register_blueprint(bp_ticket)

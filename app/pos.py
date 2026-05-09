@@ -368,7 +368,7 @@ def data_ka():
             }
     
     # Convert dict to list, sorted by lokasi
-    data_ka_nested = sorted(lokasi_data.values(), key=lambda x: x['lokasi'])
+    data_ka_nested = sorted(lokasi_data.values(), key=lambda x: (x['lokasi'] or ''))
     
     ctx = {
         'tahun': tahun,

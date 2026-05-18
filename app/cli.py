@@ -107,8 +107,8 @@ def register(app):
     @app.cli.command('fetch-sda')
     def fetch_sdatelemetry():
         '''Membaca data pada server SDATELEMETRY'''
-        # Fallback to working endpoint if SOURCE_A not configured
-        url = SOURCE_A or 'https://sdatelemetry.com/API_ap_telemetry/datatelemetry.php?idbbws=8'
+        # Fallback to datatelemetry2.php if SOURCE_A not configured
+        url = SOURCE_A or 'https://sdatelemetry.com/API_ap_telemetry/datatelemetry2.php?idbbws=8'
         x = requests.get(url)
         fl = FetchLog.create(url=x.url, response=x.status_code, body=x.text, source='SA')
         fl.sa_to_daily()

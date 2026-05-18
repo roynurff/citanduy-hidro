@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="{% block page_description %}Sistem Informasi Hidrologi dan Kualitas air (SIHKA), Balai Besar Wilayah Sungai Citanduy{% endblock %}">
     <meta name="googlebot" content="notranslate">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     {%- if canonical_url %}
     <link rel="canonical" href="{{ canonical_url }}">
     {%- endif %}

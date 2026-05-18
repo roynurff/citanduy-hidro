@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block extra_head %}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
+{% endblock %}
+{% block content %}
+
+<h2 class="border-start border-5 border-success ps-2 fw-lighter mb-4">
+    Manual Klimatologi
+</h2>
+
+{# ── Pilih Pos ── #}
+<div class="row mb-4">
+    {% for p in ctx.pos_klimats %}
+    <div class="col-md-4 mb-2">
+        <a href="?pos={{ p.id }}&s={{ ctx.sampling.strftime('%Y-%m') }}"
+           class="btn w-100 {% if ctx.selected_pos and ctx.selected_pos.id == p.id %}btn-success{% else %}btn-outline-success{% endif %}">
+            <i class="bi bi-geo-alt"></i> {{ p.nama }}
+        </a>
+    </div>
+    {% endfor %}
+</div>
+
+{% if ctx.selected_pos %}
+
+{# ── Navigasi Bulan ── #}
+<div class="text-end mb-3">
+    <a href="?pos={{ ctx.selected_pos.id }}&s={{ ctx._sampling.strftime('%Y-%m') }}"
+       class="btn btn-outline-secondary me-5">
+        {{ ctx._sampling.strftime('%b %Y') }}
+    </a>
+    <span class="fs-4 fw-light">{{ ctx.sampling.strftime('%B %Y') }}</span>
+    {% if ctx.sampling_ %}
+        <a href="?pos={{ ctx.selected_pos.id }}&s={{ ctx.sampling_.strftime('%Y-%m') }}"
+           class="btn btn-outline-secondary ms-5">
+            {{ ctx.sampling_.strftime('%b %Y') }}
+        </a>
+    {% else %}
+        <button class="btn btn-outline-secondary ms-5" disabled>-</button>
+    {% endif %}
+</div>
+
+{# ── Tabel Input ── #}
+<div class="table-responsive">
+<table class="table table-bordered table-hover text-center align-middle">
+    <thead class="table-success">
+        <tr>
+            <th>Tanggal</th>
+            <th>Suhu Min (°C)</th>
+            <th>Suhu Max (°C)</th>
+            <th>Kelembapan (%)</th>
+            <th>Kec. Angin</th>
+            <th>Arah Angin (°)</th>
+            <th>Lama Penyinaran (jam)</th>
+            <th>Penguapan (mm)</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for tgl, m in ctx.table_data.items() %}
+        <tr>
+            <td class="fw-semibold">{{ tgl.strftime('%d %b') }}</td>
+            {% for field in ctx.fields %}
+            <td x-data="inlineKlim(
+                    {{ ctx.selected_pos.id }},
+                    '{{ tgl.isoformat() }}',
+                    '{{ field }}',
+                    {{ (m|attr(field)) if m and (m|attr(field)) is not none else 'null' }}
+                )"
+                x-html="display"
+                @click="open()"
+                @click.outside="close()"
+                style="cursor: pointer; min-width: 80px;">
+            </td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<script>
+function inlineKlim(posId, sampling, field, initVal) {
+    return {
+        val: initVal,
+        display: initVal !== null ? String(initVal) : '<span class="text-muted">-</span>',
+        editing: false,
+
+        open() {
+            if (this.editing) return;
+            this.editing = true;
+            this.display = `
+                <input type="number" step="0.1"
+                    x-ref="inp"
+                    value="${this.val !== null ? this.val : ''}"
+                    @keydown.enter="submit($event.target.value)"
+                    @keydown.escape="close()"
+                    style="width:75px; text-align:right"
+                    autofocus>`;
+            this.$nextTick(() => {
+                const inp = this.$el.querySelector('input');
+                if (inp) inp.focus();
+            });
+        },
+
+        async submit(newVal) {
+            const parsed = newVal === '' ? null : parseFloat(newVal);
+            try {
+                const res = await fetch(`/pklimat/${posId}/manual`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        sampling: sampling,
+                        field: field,
+                        value: parsed
+                    })
+                });
+                const result = await res.json();
+                if (result.ok) {
+                    this.val = parsed;
+                } else {
+                    console.error('Gagal:', result.msg);
+                }
+            } catch(e) {
+                console.error('Error:', e);
+            }
+            this.editing = false;
+            this.display = this.val !== null
+                ? String(this.val)
+                : '<span class="text-muted">-</span>';
+        },
+
+        close() {
+            this.editing = false;
+            this.display = this.val !== null
+                ? String(this.val)
+                : '<span class="text-muted">-</span>';
+        }
+    }
+}
+</script>
+
+{% endif %}{# end if selected_pos #}
+
+{% endblock %}

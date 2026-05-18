@@ -685,8 +685,6 @@ class ManualKlim(BaseModel): #new class for manual klimatologi
     pos = pw.ForeignKeyField(Pos, backref='manualklim_set')
     username = pw.CharField(max_length=20)
     sampling = pw.DateField()
-    jam = pw.SmallIntegerField()  # 7, 13, 18
-    ch = pw.FloatField(null=True)
     temp_min = pw.FloatField(null=True)
     temp_max = pw.FloatField(null=True)
     kelembaban = pw.FloatField(null=True)
@@ -699,7 +697,7 @@ class ManualKlim(BaseModel): #new class for manual klimatologi
 
     class Meta:
         indexes = (
-            (('pos', 'sampling', 'jam'), True),  # unique
+            (('pos', 'sampling'), True),  # unique
         )
 
 class LengkungDebit(BaseModel):

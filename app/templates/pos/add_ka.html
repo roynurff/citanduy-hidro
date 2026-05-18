@@ -1,57 +1,162 @@
 {% extends 'base.html' %}
+{% block extra_head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
 {% block content %}
 <div class="row">
     <div class="col">
-        <h2 class="fw-lighter">Tambah Hasil Uji Kualitas Air</h2>
-        <p>Pos <strong class="fs-1">{{ ctx.pos.nama }}</strong> lonlat: {{ ctx.pos.ll }}</p>
-        <p>Bulan <strong class="fs-1">{{ ctx.sampling.strftime('%b %Y') }}</strong></p>
-                
+        <h2 class="fw-lighter">
+            {% if ctx.edit_mode %}
+            Edit Data Hasil Uji Kualitas Air
+            {% else %}
+            Tambah Data Hasil Uji Kualitas Air
+            {% endif %}
+        </h2>
+        <p class="text-secondary">Tahun: <strong>{{ ctx.tahun }}</strong></p>
     </div>
 </div>
 <div class="row">
-    <div class="col-sm-6">
+    <div class="col-sm-8">
       {% with messages = get_flashed_messages() %}
         {% if messages %}
-          <ul>
+          <ul class="alert alert-danger">
             {% for message in messages %}
-              <li class="text-danger">{{ message }}</li>
+              <li>{{ message }}</li>
             {% endfor %}
           </ul>
         {% endif %}
       {% endwith %}
-        <form action="/pos/ka/add?pid={{ ctx.pos.id }}&s={{ ctx.sampling.strftime('%Y-%m-%d') }}" method="POST" enctype="multipart/form-data">
+        {% if ctx.edit_mode %}
+        <form action="/pos/ka/edit/{{ ctx.record.id }}?tahun={{ ctx.tahun }}" method="POST" enctype="multipart/form-data">
+        {% else %}
+        <form action="/pos/ka/add?tahun={{ ctx.tahun }}" method="POST" enctype="multipart/form-data">
+        {% endif %}
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="pos_id" value="{{ ctx.pos.id }}">
-            {{ ctx.form.pos }}
-            <div class="mb-4">
-                <label for="sampling" class="form-label text-secondary">Tanggal Uji</label>
-                <input type="text" class="form-control" id="sampling" name="sampling" value="{{ ctx.sampling.strftime('%Y-%m-%d') }}">
+            
+            <div class="mb-3">
+                <label for="lokasi" class="form-label">Lokasi Pengambilan Sampel <span class="text-danger">*</span></label>
+                {{ ctx.form.lokasi(class_="form-control", placeholder="Cth: Gunungcupu, Leuwikeris, Batununggul", list="lokasi_list")|safe }}
+                <datalist id="lokasi_list">
+                    {% for lokasi in ctx.lokasi_history %}
+                    <option value="{{ lokasi }}">
+                    {% endfor %}
+                </datalist>
             </div>
-            <div class="mb-4">
-                <label for="fname" class="form-label text-secondary">File Hasil Uji Lab, gabungan hasil uji Lab dan Publikasi Balai</label>
-                <input type="file" class="form-control" id="fname" name="fname">
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="sungai" class="form-label">Sungai</label>
+                    {{ ctx.form.sungai(class_="form-control", placeholder="Cth: Citanduy, Cimuntur")|safe }}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="kota_kabupaten" class="form-label">Kota/Kabupaten</label>
+                    {{ ctx.form.kota_kabupaten(class_="form-control", placeholder="Cth: Kota Banjar")|safe }}
+                </div>
             </div>
-            <div class="mb-4">
-                <label for="doc_date" class="form-label text-secondary">Lembaga Lab</label>
-                <input type="text" class="form-control" id="lembaga" name="lembaga" placeholder="UPTD Lab LH Jawa Barat">
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="sampling" class="form-label">Tanggal Pengambilan Sampel <span class="text-danger">*</span></label>
+                    {{ ctx.form.sampling(class_="form-control")|safe }}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="periode" class="form-label">Periode <span class="text-danger">*</span></label>
+                    {{ ctx.form.periode(class_="form-control")|safe }}
+                </div>
             </div>
-            <div class="mb-4">
-                <label for="doc_date" class="form-label text-secondary">Lokasi Pengambilan Sample Air (lonlat)</label>
-                {{ ctx.form.ll(class_="form-control")|safe }}
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="ll" class="form-label">Koordinat (Lon,Lat)</label>
+                    {{ ctx.form.ll(class_="form-control", placeholder="-7.5, 108.5")|safe }}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="lembaga" class="form-label">Lembaga Lab</label>
+                    {{ ctx.form.lembaga(class_="form-control", placeholder="UPTD Lab LH Jawa Barat")|safe }}
+                </div>
             </div>
-            <div class="mb-5">
-                <label for="doc_date" class="form-label text-secondary">Status Hasil Uji</label>
-                {{ ctx.form.status_hasil_uji(class_="form-control")|safe }}
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="pi" class="form-label">Indeks Pencemaran (PI) <span class="text-danger">*</span></label>
+                    {{ ctx.form.pi(class_="form-control", step="0.01", placeholder="0.5")|safe }}
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="keterangan" class="form-label">Keterangan/Deskripsi</label>
+                {{ ctx.form.keterangan(class_="form-control", rows="3", placeholder="Kondisi air, pengamatan lapangan, dll")|safe }}
+            </div>
+
+            <div class="mb-3">
+                <label for="fname" class="form-label">Upload File Hasil Uji Lab (PDF/Image)</label>
+                <input type="file" class="form-control" id="fname" name="fname" accept=".pdf,.jpg,.jpeg,.png">
+                <small class="text-secondary">Format: PDF, JPG, PNG</small>
+            </div>
+
+            <div class="mb-3">
+                <label for="foto" class="form-label">Upload Foto Dokumentasi (Optional)</label>
+                {{ ctx.form.foto(class_="form-control")|safe }}
+                <small class="text-secondary">Format: JPG, PNG, PDF</small>
             </div>
             
-            <input type="submit" class="btn btn-primary">
+            <div class="d-flex gap-2">
+                {% if ctx.edit_mode %}
+                <button type="submit" class="btn btn-primary">Perbarui Data</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete({{ ctx.record.id }}, '{{ ctx.record.lokasi }}')">
+                    <i class="bi bi-trash"></i> Hapus Data
+                </button>
+                {% else %}
+                <button type="submit" class="btn btn-primary">Simpan Data</button>
+                {% endif %}
+                <a href="/pos/ka?tahun={{ ctx.tahun }}" class="btn btn-secondary">Kembali</a>
+            </div>
         </form>
         
     </div>
-    <div class="col-sm-6">
-
-    </div>
 </div>
-{% endblock %}
-{% block js_foot %}
+
+<script>
+    const confirmDelete = (id, lokasi) => {
+        if (confirm(`Hapus data Kualitas Air "${lokasi}"? Tindakan ini tidak dapat dibatalkan.`)) {
+            fetch(`/pos/ka/delete/${id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({ id })
+            })
+            .then(resp => {
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                return resp.json().catch(() => ({}));
+            })
+            .then(data => {
+                alert('Data berhasil dihapus');
+                window.location.href = '/pos/ka?tahun=' + '{{ ctx.tahun }}';
+            })
+            .catch(err => {
+                alert('Gagal menghapus: ' + err.message);
+            });
+        }
+    };
+    
+    // Auto-determine status based on PI value
+    document.getElementById('pi').addEventListener('change', function() {
+        const pi = parseFloat(this.value);
+        let status = '';
+        if (pi <= 1) status = 'Memenuhi Baku Mutu';
+        else if (pi <= 5) status = 'Cemar Ringan';
+        else if (pi <= 10) status = 'Cemar Sedang';
+        else status = 'Cemar Berat';
+        
+        // Display in a helper text
+        const helper = document.getElementById('pi-status') || document.createElement('small');
+        helper.id = 'pi-status';
+        helper.className = 'text-muted d-block mt-1';
+        helper.textContent = 'Status: ' + status;
+        this.parentElement.appendChild(helper);
+    });
+</script>
 {% endblock %}

@@ -1,46 +1,217 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2 class="border-start border-5 border-primary ps-2 fw-lighter">Pos Klimatologi (<b>{{ ctx.pklimats|length }}</b>)</h1>
+<h2 class="border-start border-5 border-success ps-2 fw-lighter mb-4">
+    Data Klimatologi (<b>{{ ctx.pklimats|length }}</b>)
+</h2>
+
 <div class="row">
     <div class="col">
+        <!-- navigasi tanggal -->
         <div class="text-end mb-3">
-            <a href="?s={{ ctx._sampling.strftime('%Y-%m-%d')}}" class="btn btn-outline-secondary me-5">{{ ctx._sampling.strftime('%d')}}</a> <span class="fs-3">{{ ctx.sampling.strftime('%d')}}</span> {{ ctx.sampling.strftime('%b') }} 
-            {% if ctx.sampling_ %}<a class="btn btn-outline-secondary ms-5" href="?s={{ ctx.sampling_.strftime('%Y-%m-%d')}}">{{ ctx.sampling_.strftime('%d')}}</a>
-            {% else %}<button class="btn btn-outline-secondary ms-5">-</button>{% endif %}</span>
+            <a href="?s={{ ctx._sampling.strftime('%Y-%m-%d')}}" class="btn btn-outline-secondary me-5">
+                {{ ctx._sampling.strftime('%d')}}
+            </a>
+            <span class="fs-3">{{ ctx.sampling.strftime('%d')}}</span> {{ ctx.sampling.strftime('%b') }}
+            {% if ctx.sampling_ %}
+                <a class="btn btn-outline-secondary ms-5" href="?s={{ ctx.sampling_.strftime('%Y-%m-%d')}}">
+                    {{ ctx.sampling_.strftime('%d')}}
+                </a>
+            {% else %}
+                <button class="btn btn-outline-secondary ms-5" disabled>-</button>
+            {% endif %}
         </div>
-        <table class="table table-bordered table-hover table-striped">
-<thead>
-    <tr>
-        <th>Nama</th>
-        <th>Curah Hujan</th>
-        <th>Temp Min</th>
-        <th>Temp Mak</th>
-        <th>Kelembaban</th>
-        <th>Kec Angin</th>
-        <th>Arah Angin</th>
-        <th>Waktu Data</th>
-    </tr>
-</thead>
-<tbody>
-{% for p in ctx.pklimats %}
-    <tr>
-        <td>{{ p.nama }}</td>
-        <td>{{ p.klimat.rain }}</td>
-        <td>{{ p.klimat.temperature }}</td>
-        <td></td>
-        <td>{{ p.klimat.humidity }}</td>
-        <td>{{ p.klimat.wind_speed }}</td>
-        <td>{{ p.klimat.wind_dir }}</td>
-        <td>{{ p.klimat.sampling }}</td>
-    </tr>
-{% else %}
-    <tr>
-        <td colspan="8">Tidak ada data</td>
-    </tr>
-{% endfor %}
-</tbody>
-        </table>
+
+        <ul class="nav nav-tabs mb-3" id="klimatTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link text-dark active fw-semibold" id="telemetri-tab"
+                    data-bs-toggle="tab" data-bs-target="#telemetri" type="button">Telemetri</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link text-dark fw-semibold" id="manual-tab"
+                    data-bs-toggle="tab" data-bs-target="#manual" type="button">Manual</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="klimatTabContent">
+
+            <!-- ===== TAB TELEMETRI ===== -->
+            <div class="tab-pane fade show active" id="telemetri" role="tabpanel">
+                <table class="table table-bordered table-hover table-striped text-center align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nama Pos</th>
+                            <th>Curah Hujan (mm)</th>
+                            <th>Suhu (°C)</th>
+                            <th>Kelembapan (%)</th>
+                            <th>Kec. Angin (km/h)</th>
+                            <th>Arah Angin</th>
+                            <th>Waktu Data Terakhir</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for p in ctx.pklimats %}
+                        <tr>
+                            <td class="text-start">{{ p.nama }}</td>
+                            <td>{{ p.klimat.rain | default('-', true) if p.klimat }}</td>
+                            <td>{{ p.klimat.temperature | default('-', true) if p.klimat }}</td>
+                            <td>{{ p.klimat.humidity | default('-', true) if p.klimat }}</td>
+                            <td>{{ p.klimat.wind_speed | default('-', true) if p.klimat }}</td>
+                            <td>{{ p.klimat.wind_dir_compass if p.klimat else '-' }}</td>
+                            <td>
+                                {% if p.klimat and p.klimat.sampling %}
+                                    <span class="badge bg-info text-dark">
+                                        {{ p.klimat.sampling[11:16] }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-danger small">Offline</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="text-muted">Tidak ada data pos telemetri</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ===== TAB MANUAL ===== -->
+            <div class="tab-pane fade" id="manual" role="tabpanel">
+                <table class="table table-bordered table-hover text-center align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nama Pos</th>
+                            <th>Suhu Min (°C)</th>
+                            <th>Suhu Max (°C)</th>
+                            <th>Kelembapan (%)</th>
+                            <th>Kec. Angin</th>
+                            <th>Arah Angin (°)</th>
+                            <th>Lama Penyinaran (jam)</th>
+                            <th>Penguapan (mm)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for p in ctx.pklimats %}
+                        <tr>
+                            <td class="text-start">{{ p.nama }}</td>
+                            <td>{{ p.manual.temp_min if p.manual and p.manual.temp_min is not none else '-' }}</td>
+                            <td>{{ p.manual.temp_max if p.manual and p.manual.temp_max is not none else '-' }}</td>
+                            <td>{{ p.manual.kelembaban if p.manual and p.manual.kelembaban is not none else '-' }}</td>
+                            <td>{{ p.manual.kec_angin if p.manual and p.manual.kec_angin is not none else '-' }}</td>
+                            <td>{{ p.manual.arah_angin if p.manual and p.manual.arah_angin is not none else '-' }}</td>
+                            <td>{{ p.manual.lama_penyinaran if p.manual and p.manual.lama_penyinaran is not none else '-' }}</td>
+                            <td>{{ p.manual.penguapan if p.manual and p.manual.penguapan is not none else '-' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="8" class="text-muted">Tidak ada data</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
     </div>
 </div>
 
+<script>
+(function() {
+    let _posId, _sampling, _jam;
+
+    // Buka modal saat tombol input/edit diklik
+    document.querySelectorAll('.btn-input-manual').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const d = this.dataset;
+            _posId    = d.posId;
+            _sampling = d.sampling;
+            _jam      = d.jam;
+
+            document.getElementById('modal-pos-nama').textContent = d.posNama;
+            document.getElementById('modal-sampling').value = d.sampling;
+            document.getElementById('modal-jam').value = d.jam + ':00';
+
+            // Isi nilai existing kalau ada
+            document.getElementById('f-ch').value             = d.ch || '';
+            document.getElementById('f-temp-min').value       = d.tempMin || '';
+            document.getElementById('f-temp-max').value       = d.tempMax || '';
+            document.getElementById('f-kelembaban').value     = d.kelembaban || '';
+            document.getElementById('f-kec-angin').value      = d.kecAngin || '';
+            document.getElementById('f-arah-angin').value     = d.arahAngin || '';
+            document.getElementById('f-lama-penyinaran').value= d.lamaPenyinaran || '';
+            document.getElementById('f-penguapan').value      = d.penguapan || '';
+
+            new bootstrap.Modal(document.getElementById('modalManualKlim')).show();
+        });
+    });
+
+    // Simpan data
+    document.getElementById('btn-save-manual').addEventListener('click', async function() {
+        const btnText    = document.getElementById('btn-save-text');
+        const spinner    = document.getElementById('btn-save-spinner');
+
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
+        this.disabled = true;
+
+        const payload = {
+            pos_id:           _posId,
+            sampling:         _sampling,
+            jam:              parseInt(_jam),
+            ch:               document.getElementById('f-ch').value,
+            temp_min:         document.getElementById('f-temp-min').value,
+            temp_max:         document.getElementById('f-temp-max').value,
+            kelembaban:       document.getElementById('f-kelembaban').value,
+            kec_angin:        document.getElementById('f-kec-angin').value,
+            arah_angin:       document.getElementById('f-arah-angin').value,
+            lama_penyinaran:  document.getElementById('f-lama-penyinaran').value,
+            penguapan:        document.getElementById('f-penguapan').value,
+        };
+
+        try {
+            const res = await fetch('/pklimat/manual', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (result.ok) {
+                const fields = ['ch', 'temp_min', 'temp_max', 'kelembaban',
+                                'kec_angin', 'arah_angin', 'lama_penyinaran', 'penguapan'];
+                
+                // Update cell di tabel
+                fields.forEach(f => {
+                    const cell = document.getElementById(`td-${_posId}-${_jam}-${f}`);
+                    if (cell) {
+                        const val = payload[f];
+                        cell.textContent = (val === '' || val === null) ? '-' : val;
+                    }
+                });
+
+                // Update tombol Input → Edit + update data attributes
+                const btn = document.getElementById(`btn-${_posId}-${_jam}`);
+                if (btn) {
+                    btn.innerHTML = '<i class="bi bi-pencil-square"></i> Edit';
+                    fields.forEach(f => {
+                        const key = 'data-' + f.replace(/_/g, '-');
+                        btn.setAttribute(key, payload[f] ?? '');
+                    });
+                }
+
+                bootstrap.Modal.getInstance(
+                    document.getElementById('modalManualKlim')
+                ).hide();
+            } else {
+                alert('Gagal: ' + result.msg);
+            }
+        } catch(e) {
+            alert('Error: ' + e.message);
+        } finally {
+            btnText.classList.remove('d-none');
+            spinner.classList.add('d-none');
+            this.disabled = false;
+        }
+    });
+})();
+</script>
 {% endblock %}

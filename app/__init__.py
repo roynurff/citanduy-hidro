@@ -87,7 +87,9 @@ def get_warning_wlevel(now: Optional[datetime.datetime] = None) -> list:
             })
     return warning_list
 
-def get_heavy_rainfall(now: datetime.datetime = datetime.datetime.now()) -> list:
+def get_heavy_rainfall(now: datetime.datetime = None) -> list:
+    if now is None:
+        now = datetime.datetime.now()
     rd = RDaily.select().where(RDaily.sampling==now.date())
     rain_list = []
     for r in rd:

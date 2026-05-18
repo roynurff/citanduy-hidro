@@ -12,6 +12,71 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/static/css/custom.css">
     <script src="//unpkg.com/alpinejs" defer></script>
+    
+    <style>/* Glass Card */
+      .glass-card {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-radius: 16px;
+        color: #fff;
+      }
+
+      .glass-card .card-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.85);
+      }
+
+      .glass-card .table {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.85rem;
+        --bs-table-bg: transparent;        /* tambahin ini */
+        --bs-table-striped-bg: transparent; /* tambahin ini */
+        --bs-table-hover-bg: transparent;   /* tambahin ini */
+      }
+
+      .glass-card .table td {
+        border-color: rgba(255, 255, 255, 0.08);
+        padding: 0.4rem 0.25rem;
+        background: transparent !important; /* tambahin ini */
+      }
+
+      .glass-card .table tr {
+        background: transparent !important; /* tambahin ini */
+      }
+
+      .glass-card a {
+        color: #7dd3fc;
+        font-size: 0.8rem;
+      }
+
+      /* Hero title */
+      .display-6 {
+        font-weight: 700;
+        line-height: 1.15;
+      }
+
+      /* Subteks tanggal & jam */
+      .text-light.fs-5 {
+        font-weight: 400;
+        letter-spacing: 0.03em;
+        opacity: 0.85;
+      }
+
+      /* Animasi logo float */
+      .img-fluid[alt="SIHKA"] {
+        animation: float 5s ease-in-out infinite;
+        filter: drop-shadow(0 8px 24px rgba(255,255,255,0.15));
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50%       { transform: translateY(-10px); }
+      }
+    </style>
+
   </head>
   {% if not config['DEBUG'] %}
   <!-- Google tag (gtag.js) -->
@@ -25,9 +90,14 @@
   </script>
   {% endif %}
   <body x-data="{ open: false }">
-    <div class="min-vh-100 d-flex flex-column" style="background-image: url('/static/img/manganti.webp'); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; position: relative;">
-      
+    <div class="min-vh-100 d-flex flex-column" style="position: relative;">
+
+      <!-- Video Background -->
+      <div class="min-vh-100 d-flex flex-column" style="background-image: url('/static/img/manganti.webp'); background-size: cover; background-repeat:  no-repeat; background-attachment: fixed; position: relative;">
       <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.487);"></div>
+
+      <!-- Overlay -->
+      <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.487); z-index: -1;"></div>
       
       <div class="d-flex flex-column flex-grow-1" style="position: relative; z-index: 1;">
         
@@ -41,9 +111,11 @@
               {% if current_user.is_admin %}
               <li>
                 <a href="/pos/manual" class="dropdown-item navlink"><i class="bi bi-pencil me-2 text-danger"></i> Data Manual</a>
+                <a href="/pklimat/input" class="dropdown-item navlink"><i class="bi bi-pencil me-2 text-danger"></i> Manual Klimatologi</a>
                 <a href="/rpos" class="dropdown-item navlink"><i class="bi bi-cpu me-2 text-danger"></i> Data Logger</a>
                 <a href="/pos/ka" class="dropdown-item navlink"><i class="bi bi-card-checklist me-2 text-danger"></i> Data Kualitas Air</a>
                 <a href="/pub/adm" class="dropdown-item navlink"><i class="bi bi-card-checklist me-2 text-danger"></i> Admin Publikasi</a>
+                
                 <hr class="dropdown-divider" />
                 <a href="/pos/manual/kinerja" class="dropdown-item navlink"><i class="bi bi-clipboard2-pulse me-2 text-danger"></i> Kinerja Data Manual</a>
                 <a href="/rdaily" class="dropdown-item navlink"><i class="bi bi-graph-up me-2 text-danger"></i> Kinerja Telemetri</a>
@@ -75,7 +147,7 @@
           <h1 class="display-6 fw-bold text-white mb-3">Sistem Informasi Hidrologi dan Kualitas Air</h1>
 
           <p class="text-light fs-5 mt-3 mb-5">
-            Hari ini, {{ ctx.today.strftime('%d %b %Y') }} &bullet; 
+            {{ ctx.today.strftime('%d %b %Y') }} &bullet; 
             <span x-data="{ time: new Date() }" 
                   x-init="setInterval(() => time = new Date(), 1000)" 
                   x-text="String(time.getHours()).padStart(2, '0') + ':' + String(time.getMinutes()).padStart(2, '0')">
@@ -85,20 +157,20 @@
           <div class="row justify-content-center g-4 w-100" style="max-width: 900px;">
             
             <div class="col-md-6">
-              <div class="card text-bg-light h-100 shadow-sm border-0">
-                <div class="card-body">
-                  <h5 class="card-title mb-3 fw-normal"><i class="bi bi-cloud-rain me-2 text-warning"></i>Status Hujan</h5>
-                  <table class="table table-sm" id="rain-data"></table>
-                </div>
+              <div class="card h-100 border-0 shadow-sm rounded-3 p-3">
+                <h5 class="card-title mb-3 fw-semibold text-dark" style="font-size:1.1rem;">
+                  <i class="bi bi-cloud-rain me-2 text-warning"></i>Status Hujan
+                </h5>
+                <table class="table table-sm mb-2" id="rain-data"></table>
               </div>
             </div>
-            
+
             <div class="col-md-6">
-              <div class="card text-bg-light h-100 shadow-sm border-0">
-                <div class="card-body">
-                  <h5 class="card-title mb-3 fw-normal"><i class="bi bi-water me-2 text-info"></i>Status Muka Air</h5>
-                  <table class="table table-sm" id="wlevel-data"></table>
-                </div>
+              <div class="card h-100 border-0 shadow-sm rounded-3 p-3">
+                <h5 class="card-title mb-3 fw-semibold text-dark" style="font-size:1.1rem;">
+                  <i class="bi bi-water me-2 text-info"></i>Status Muka Air
+                </h5>
+                <table class="table table-sm mb-2" id="wlevel-data"></table>
               </div>
             </div>
             
@@ -175,7 +247,7 @@
                 }
               });
               const summaryItem = document.createElement('tr');
-              summaryItem.innerHTML = `<td colspan="2"><br><a href="/pda">Lihat semua pos</a></td>`;
+              summaryItem.innerHTML = `<td colspan="2" style="border:none; padding-top:0.75rem;"><a href="/pda" style="font-size:0.8rem; color:#000000; text-decoration:none;"><i class="bi bi-arrow-right-circle me-1"></i>Lihat semua pos</a></td>`;
               wlevelDataList.appendChild(summaryItem);
             })
             .catch(error => console.error('Error fetching water level data:', error));
@@ -208,9 +280,14 @@
                   }
                   sampling = item.sampling;
                 });
-                const summaryItem = document.createElement('tr');
-                summaryItem.innerHTML = `<td colspan="2"><br><a href="/pch?s=${sampling.split('T')[0]}">${i - 5} pos lain</a>, Rata-rata <b>${(sumRain / i).toFixed(1)}</b>mm</td>`
-                rainDataList.appendChild(summaryItem);
+                if (i > 5 && sampling) {  // Guard null sampling
+                  const summaryItem = document.createElement('tr');
+                  summaryItem.innerHTML = `<td colspan="2" style="border:none; padding-top:0.75rem;">
+                      <a href="/pch?s=${sampling.split('T')[0]}" style="font-size:0.8rem; color:#000000; text-decoration:none;">
+                      <i class="bi bi-arrow-right-circle me-1"></i>${i - 5} pos lain &mdash; rata-rata <b>${(sumRain / i).toFixed(1)}mm</b>
+                      </a></td>`;
+                  rainDataList.appendChild(summaryItem);
+              }
             })
             .catch(error => console.error('Error fetching rain data:', error));
         }

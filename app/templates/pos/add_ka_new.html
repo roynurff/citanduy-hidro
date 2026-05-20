@@ -161,7 +161,7 @@
             <div class="card mb-4">
                 <div class="card-header bg-light">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-table"></i> Data Parameter (17 Parameter — Klik untuk Edit)
+                        <i class="bi bi-table"></i> Data Parameter (17 Parameter)
                     </h5>
                 </div>
                 <div class="card-body p-0">
@@ -174,24 +174,39 @@
                                     <th width="40%">Nilai</th>
                                 </tr>
                             </thead>
-                            <tbody id="parameterTableBody" x-data="parameterTable">
-                                <template x-for="(param, idx) in parameters" :key="idx">
-                                    <tr>
-                                        <td><span x-text="param.name"></span></td>
-                                        <td><span class="text-muted" x-text="param.satuan || '-'"></span></td>
-                                        <td class="param-value-cell"
-                                            @click="editParameter(idx)"
-                                            :class="param.nilai ? 'text-dark' : 'text-muted fst-italic'"
-                                            x-text="param.nilai || 'klik untuk isi'">
-                                        </td>
-                                    </tr>
-                                </template>
+                            <tbody>
+                                {% for p in ctx.parameter_list %}
+                                {% set existing = ctx.parameter_values | selectattr('parameter_name', 'equalto', p.name) | first %}
+                                <tr>
+                                    <td>{{ p.name }}</td>
+                                    <td class="text-muted">{{ p.satuan or '-' }}</td>
+                                    <!-- DEBUG: {{ existing.nilai if existing else 'NOT FOUND' }} -->
+                                    <td x-data='inlineParam("{{ p.name | e }}", {{ (existing.nilai | tojson) if existing else "null" }})'
+                                        @click.outside="close()"
+                                        style="cursor: pointer; min-width: 100px;">
+                                        <span x-show="!editing"
+                                            @click="open()"
+                                            :class="val ? 'text-dark' : 'text-muted fst-italic'"
+                                            x-text="val || 'klik untuk isi'">
+                                        </span>
+                                        <input x-show="editing"
+                                            x-ref="inp"
+                                            type="text"
+                                            :value="val || ''"
+                                            @keydown.enter.prevent="submit($refs.inp.value)"
+                                            @keydown.tab.prevent="submit($refs.inp.value)"
+                                            @keydown.escape="close()"
+                                            @blur="submit($refs.inp.value)"
+                                            style="width:100%; max-width:160px;">
+                                    </td>
+                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
                     <div class="alert alert-info m-3 mb-2">
                         <i class="bi bi-info-circle"></i>
-                        <small>Klik pada kolom nilai untuk mengedit. Parameter wajib harus diisi sebelum menyimpan.</small>
+                        <small>Klik pada kolom nilai untuk mengedit langsung.</small>
                     </div>
                 </div>
             </div>
@@ -213,29 +228,6 @@
     </div>
 </div>
 
-<!-- Modal edit parameter -->
-<div class="modal fade" id="parameterModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="parameterModalTitle">Edit Parameter</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label" id="parameterModalLabel"></label>
-                    <input type="text" class="form-control" id="parameterModalInput">
-                    <small class="text-muted d-block mt-1" id="parameterModalSatuan"></small>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-primary" id="parameterModalSave">Simpan</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Data dari Flask -->
 <script>
 const PARAMETER_LIST = {{ ctx.parameter_list | tojson | safe }};
@@ -245,83 +237,61 @@ const EXISTING_LOKASI_ID = {{ ctx.lokasi_master_id | tojson | safe }};
 const EXISTING_LOKASI_NAMA = {{ ctx.lokasi_nama | tojson | safe }};
 </script>
 
-<!-- Alpine.js component — harus sebelum load Alpine -->
 <script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('parameterTable', () => ({
-        parameters: PARAMETER_LIST.map(p => {
-            let nilai = null;
-            if (EDIT_MODE && EXISTING_VALUES.length > 0) {
-                const found = EXISTING_VALUES.find(ev => ev.parameter_name === p.name);
-                if (found) nilai = found.nilai;
+// Simpan semua nilai parameter
+const paramValues = {};
+
+function inlineParam(paramName, initVal) {
+    return {
+        val: initVal,
+        editing: false,
+
+        open() {
+            if (this.editing) return;
+            this.editing = true;
+            this.$nextTick(() => {
+                if (this.$refs.inp) this.$refs.inp.focus();
+            });
+        },
+
+        submit(newVal) {
+            if (!this.editing) return;
+            const v = String(newVal === undefined ? '' : newVal).trim();
+            this.val = v === '' ? null : v;
+
+            if (this.val !== null) {
+                paramValues[paramName] = this.val;
+            } else {
+                delete paramValues[paramName];
             }
-            return {
-                name: p.name || '',
-                satuan: p.satuan || '',
-                required: p.required !== false,
-                nilai: nilai
-            };
-        }),
-        currentEditIdx: null,
 
-        editParameter(idx) {
-            this.currentEditIdx = idx;
-            const param = this.parameters[idx];
-            document.getElementById('parameterModalTitle').textContent = 'Edit: ' + param.name;
-            document.getElementById('parameterModalLabel').textContent = param.name;
-            document.getElementById('parameterModalSatuan').textContent = 'Satuan: ' + (param.satuan || '-');
-            document.getElementById('parameterModalInput').value = param.nilai || '';
-
-            const modalEl = document.getElementById('parameterModal');
-            const bsModal = new bootstrap.Modal(modalEl);
-            bsModal.show();
-            modalEl.addEventListener('shown.bs.modal', () => {
-                document.getElementById('parameterModalInput').focus();
-            }, { once: true });
+            document.getElementById('parametersJson').value = JSON.stringify(paramValues);
+            this.editing = false;
         },
 
-        saveParameterValue() {
-            const idx = this.currentEditIdx;
-            if (idx === null) return;
-            const value = document.getElementById('parameterModalInput').value.trim();
-            this.parameters[idx].nilai = value || null;
-            this.updateParametersJson();
-            const bsModal = bootstrap.Modal.getInstance(document.getElementById('parameterModal'));
-            if (bsModal) bsModal.hide();
-        },
-
-        updateParametersJson() {
-            const obj = {};
-            this.parameters.forEach(p => { obj[p.name] = p.nilai; });
-            document.getElementById('parametersJson').value = JSON.stringify(obj);
+        close() {
+            this.editing = false;
         },
 
         init() {
-            // Trigger save dari luar Alpine
-            this.$el.addEventListener('triggerSave', () => this.saveParameterValue());
-
-            // Validasi + update JSON sebelum submit
-            document.getElementById('mainForm').addEventListener('submit', (e) => {
-                this.updateParametersJson();
-                const missing = this.parameters
-                    .filter(p => p.required && !p.nilai)
-                    .map(p => p.name);
-                if (missing.length > 0) {
-                    e.preventDefault();
-                    alert('⚠️ Parameter wajib belum diisi:\n\n' + missing.join('\n'));
-                }
-            }, { capture: true });
+            if (this.val !== null && this.val !== undefined) {
+                paramValues[paramName] = this.val;
+                document.getElementById('parametersJson').value = JSON.stringify(paramValues);
+            }
+            // Force Alpine reaktif
+            this.$nextTick(() => {
+                this.val = this.val;
+            });
         }
-    }));
-});
+    }
+}
 </script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+let lokasiMap = {};
 
-    // ===== Datalist lokasi =====
-    let lokasiMap = {}; // nama → id
+document.addEventListener('DOMContentLoaded', function() {
 
     fetch('/api/lokasi/list')
         .then(r => r.json())
@@ -334,48 +304,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 datalist.appendChild(opt);
             });
 
-            // Edit mode: pre-fill lokasi_id jika nama cocok
             if (EDIT_MODE && EXISTING_LOKASI_NAMA) {
                 const id = lokasiMap[EXISTING_LOKASI_NAMA];
-                if (id) document.getElementById('lokasiIdHidden').value = id;
+                if (id) {
+                    document.getElementById('lokasiIdHidden').value = id;
+                    loadLokasiDetail(id);
+                }
             }
         });
 
-    // Saat user memilih/mengetik lokasi
     document.getElementById('lokasiInput').addEventListener('input', function() {
         const val = this.value.trim();
         const id = lokasiMap[val];
-        const prompt = document.getElementById('newLokasiPrompt');
+        const promptEl = document.getElementById('newLokasiPrompt');
 
         if (id) {
-            // Lokasi sudah ada → auto-fill dan simpan id
             document.getElementById('lokasiIdHidden').value = id;
             loadLokasiDetail(id);
-            prompt.classList.add('d-none');
+            promptEl.classList.add('d-none');
         } else if (val.length > 2) {
-            // Lokasi belum ada → tampilkan prompt simpan baru
             document.getElementById('lokasiIdHidden').value = '';
             document.getElementById('newLokasiName').textContent = val;
-            prompt.classList.remove('d-none');
+            promptEl.classList.remove('d-none');
         } else {
-            prompt.classList.add('d-none');
+            promptEl.classList.add('d-none');
             document.getElementById('lokasiIdHidden').value = '';
         }
     });
 
-    // Modal parameter: tombol simpan
-    document.getElementById('parameterModalSave').addEventListener('click', function() {
-        document.getElementById('parameterTableBody')
-            .dispatchEvent(new CustomEvent('triggerSave'));
-    });
-
-    // Modal parameter: Enter untuk simpan
-    document.getElementById('parameterModalInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') document.getElementById('parameterModalSave').click();
+    document.getElementById('mainForm').addEventListener('submit', function() {
+        document.getElementById('parametersJson').value = JSON.stringify(paramValues);
     });
 });
 
-// Auto-fill sungai, kab, koordinat dari master
 function loadLokasiDetail(lokasiId) {
     fetch(`/api/lokasi/get/${lokasiId}`)
         .then(r => r.json())
@@ -389,7 +350,6 @@ function loadLokasiDetail(lokasiId) {
         .catch(err => console.error('loadLokasiDetail error:', err));
 }
 
-// Simpan lokasi baru ke database
 function saveNewLokasi() {
     const nama = document.getElementById('lokasiInput').value.trim();
     const sungai = document.getElementById('sungaiField').value.trim();
@@ -408,16 +368,13 @@ function saveNewLokasi() {
     .then(r => r.json())
     .then(data => {
         if (data.ok) {
-            // Tambah ke datalist dan lokasiMap
             lokasiMap[data.nama_lokasi] = data.id;
             const opt = document.createElement('option');
             opt.value = data.nama_lokasi;
             document.getElementById('lokasiDatalist').appendChild(opt);
-
-            // Set hidden id
             document.getElementById('lokasiIdHidden').value = data.id;
             document.getElementById('newLokasiPrompt').classList.add('d-none');
-
+            loadLokasiDetail(data.id);
             alert(`Lokasi "${data.nama_lokasi}" berhasil disimpan!`);
         } else {
             alert('Gagal: ' + (data.error || 'Unknown error'));
@@ -426,7 +383,6 @@ function saveNewLokasi() {
     .catch(() => alert('Gagal menyimpan lokasi baru'));
 }
 
-// Hapus data hasil uji
 function confirmDelete(id, lokasi) {
     if (!confirm(`Hapus data Kualitas Air "${lokasi}"?\nTindakan ini tidak dapat dibatalkan.`)) return;
 

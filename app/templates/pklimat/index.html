@@ -52,10 +52,10 @@
                     {% for p in ctx.pklimats %}
                         <tr>
                             <td class="text-start">{{ p.nama }}</td>
-                            <td>{{ p.klimat.rain | default('-', true) if p.klimat }}</td>
-                            <td>{{ p.klimat.temperature | default('-', true) if p.klimat }}</td>
-                            <td>{{ p.klimat.humidity | default('-', true) if p.klimat }}</td>
-                            <td>{{ p.klimat.wind_speed | default('-', true) if p.klimat }}</td>
+                            <td>{{ p.klimat.rain if p.klimat and p.klimat.rain is not none else '-' }}</td>
+                            <td>{{ p.klimat.temperature if p.klimat and p.klimat.temperature is not none else '-' }}</td>
+                            <td>{{ p.klimat.humidity if p.klimat and p.klimat.humidity is not none else '-' }}</td>
+                            <td>{{ p.klimat.wind_speed if p.klimat and p.klimat.wind_speed is not none else '-' }}</td>
                             <td>{{ p.klimat.wind_dir_compass if p.klimat else '-' }}</td>
                             <td>
                                 {% if p.klimat and p.klimat.sampling %}

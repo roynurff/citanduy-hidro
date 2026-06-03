@@ -161,7 +161,7 @@ def edit_pub(pub_id):
         pub.sampling = form.sampling.data
  
         f = form.filename.data
-        if f and f.filename:
+        if f and hasattr(f, 'filename') and f.filename:
             # Ada file baru — generate thumbnail, simpan, update record
             thumbnail_base64 = create_thumbnail_base64(f)
             if thumbnail_base64 is None:

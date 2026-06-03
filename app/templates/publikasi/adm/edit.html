@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}Edit Publikasi{% endblock %}
+{%- block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+<script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.polyfills.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
+{%- endblock %}
+
+{%- block js_foot %}
+<script>
+    var input = document.querySelector('input[name=tags]');
+    new Tagify(input, {
+        whitelist: ['hujan', 'tinggi muka air', 'banjir', 'curah hujan', 'sungai', 'iklim', 'cuaca', 'prediksi', 'model', 'data'],
+        dropdown: {
+            maxItems: 20,
+            classname: "tags-look",
+            enabled: 0,
+            closeOnSelect: false
+        }
+    });
+</script>
+{%- endblock %}
+
+{%- block content %}
+<h2 class="border-start border-5 border-danger ps-2 fw-lighter">Edit Publikasi</h2>
+
+{%- if ctx.errors %}
+    <div class="alert alert-danger" role="alert">
+        <ul>
+        {%- for field, errors in ctx.errors.items() %}
+            {%- for error in errors %}
+                <li>{{ field }}: {{ error }}</li>
+            {%- endfor %}
+        {%- endfor %}
+        </ul>
+    </div>
+{%- endif %}
+
+<form action="{{ url_for('publikasi.edit_pub', pub_id=ctx.pub.id) }}" method="POST" enctype="multipart/form-data">
+    {{ ctx.form.hidden_tag() }}
+
+    <div class="mb-3">
+        <label for="title">Judul</label>
+        {{ ctx.form.title(size=80, class_="form-control") }}
+        {% for error in ctx.form.title.errors %}
+            <div class="invalid-feedback d-block">[{{ error }}]</div>
+        {% endfor %}
+    </div>
+
+    <div class="mb-3">
+        <label for="content">Ringkasan</label>
+        {{ ctx.form.content(class_="form-control", rows=4) }}
+        {% for error in ctx.form.content.errors %}
+            <div class="invalid-feedback d-block">[{{ error }}]</div>
+        {% endfor %}
+    </div>
+
+    <div class="mb-3">
+        <label for="saran">Saran Tim Hidrologi</label>
+        {{ ctx.form.saran(class_="form-control", rows=5, placeholder="Tuliskan saran atau rekomendasi dari tim hidrologi untuk masyarakat...") }}
+        {% for error in ctx.form.saran.errors %}
+            <div class="invalid-feedback d-block">[{{ error }}]</div>
+        {% endfor %}
+        <div class="form-text">Saran akan ditampilkan di halaman detail publikasi.</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="filename">File PDF</label>
+        {%- if ctx.pub.filename %}
+        <div class="mb-2 small text-muted">
+            <i class="bi bi-file-earmark-pdf text-danger"></i>
+            File saat ini: <a href="/static/pub/{{ ctx.pub.filename }}" target="_blank">{{ ctx.pub.filename }}</a>
+            &mdash; kosongkan jika tidak ingin mengganti.
+        </div>
+        {%- endif %}
+        {%- if ctx.form.filename.errors %}
+        {{ ctx.form.filename(class_="form-control is-invalid") }}
+        {%- else %}
+        {{ ctx.form.filename(class_="form-control") }}
+        {%- endif %}
+        {% for error in ctx.form.filename.errors %}
+            <div class="invalid-feedback">[{{ error }}]</div>
+        {% endfor %}
+    </div>
+
+    <div class="mb-3">
+        <label for="sampling">Tanggal Terbit</label>
+        {%- if ctx.form.sampling.errors %}
+        {{ ctx.form.sampling(class_="form-control is-invalid") }}
+        {%- else %}
+        {{ ctx.form.sampling(class_="form-control") }}
+        {%- endif %}
+        {% for error in ctx.form.sampling.errors %}
+            <div class="invalid-feedback">[{{ error }}]</div>
+        {% endfor %}
+    </div>
+
+    <div class="mb-3">
+        <label for="tags">Kategori</label>
+        {{ ctx.form.tags(size=80, class_="form-control") }}
+        {% for error in ctx.form.tags.errors %}
+            <div class="invalid-feedback d-block">[{{ error }}]</div>
+        {% endfor %}
+    </div>
+
+    <div class="d-flex gap-2 mt-3">
+        <input type="submit" class="btn btn-primary" value="Simpan Perubahan">
+        <a href="{{ url_for('publikasi.get_all_pub') }}" class="btn btn-outline-secondary">Batal</a>
+    </div>
+</form>
+{%- endblock %}

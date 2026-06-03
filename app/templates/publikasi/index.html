@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 {% block title %}Publikasi{% endblock %}
 {%- block content %}
+<style>
+    .card-pub {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        cursor: pointer;
+    }
+    .card-pub:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+</style>
 <h2 class="border-start border-5 border-danger ps-2 fw-lighter">Publikasi</h2>
 <p>Informasi hasil analisa Tim Hidrologi</p>
 <div class="text-end mb-3">
@@ -11,23 +21,33 @@
 </div>
 
 <div class="container">
-
     <div class="row">
         {%- for pub in ctx.publikasi %}
         <div class="col-sm-6 col-md-3 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
+            <div class="card h-100 card-pub">
+                <a href="{{ url_for('publikasi.detail_pub', pub_id=pub.id) }}" class="text-decoration-none text-reset stretched-link-wrapper">
                     <img src="{{ pub.thumbnail_base64}}" class="img-fluid" alt="PNG">
-                    <h5 class="card-title">{{ pub.title }}</h5>
-                    <p class="card-text">{{ pub.content }}</p>
+                </a>
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <a href="{{ url_for('publikasi.detail_pub', pub_id=pub.id) }}" class="text-decoration-none text-reset stretched-link">{{ pub.title }}</a>
+                    </h5>
+                    <p class="card-text text-muted small">{{ pub.content | truncate(100) }}</p>
+                    {%- if pub.saran %}
+                    <p class="small text-warning-emphasis mb-0">
+                        <i class="bi bi-lightbulb"></i> Ada saran dari tim hidrologi
+                    </p>
+                    {%- endif %}
                 </div>
                 <div class="card-footer small d-flex justify-content-between">
                     <span>{{ pub.sampling }}</span>
                     <span class="text-right">
                         {%- if pub.filename %}
-                        <a href="/static/pub/{{ pub.filename }}">Download</a>
+                        <a href="/static/pub/{{ pub.filename }}" title="Download PDF" onclick="event.stopPropagation();">
+                            <i class="bi bi-file-earmark-pdf text-danger"></i>
+                        </a>
                         {%- else %}
-                        Download
+                        <i class="bi bi-file-earmark-pdf text-secondary"></i>
                         {%- endif %}
                     </span>
                 </div>
@@ -36,7 +56,6 @@
         {%- else %}
         <p>Tidak ada Publikasi pada rentang waktu terpilih.</p>
         {%- endfor %}
-
     </div>
 </div>
 {%- endblock %}

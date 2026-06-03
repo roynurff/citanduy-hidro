@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 
-from wtforms import StringField, SelectField, HiddenField, FloatField, DateField
+from wtforms import StringField, TextAreaField, SelectField, HiddenField, FloatField, DateField
 from wtforms.validators import DataRequired
 from flask_wtf.file import FileField, FileAllowed, FileRequired
 
@@ -67,8 +67,19 @@ class PublikasiForm(FlaskForm):
     title = StringField('title', validators=[DataRequired()])
     sampling = DateField('sampling', validators=[DataRequired()])
     content = StringField('content', validators=[DataRequired()])
+    saran = TextAreaField('saran')
     tags = StringField('tags', validators=[DataRequired()])
     filename = FileField('filename', validators=[FileRequired(), FileAllowed(['pdf'], 'PDF only!')])
+
+class EditPublikasiForm(FlaskForm):                         
+    """Form edit — filename opsional (boleh kosong kalau tidak ganti PDF)"""
+    title    = StringField('title', validators=[DataRequired()])
+    sampling = DateField('sampling', validators=[DataRequired()])
+    content  = StringField('content', validators=[DataRequired()])
+    saran    = TextAreaField('saran')
+    tags     = StringField('tags', validators=[DataRequired()])
+    filename = FileField('filename', validators=[
+                   FileAllowed(['pdf'], 'PDF only!')])
     
 class TicketForm(FlaskForm):
     username = HiddenField('username', validators=[DataRequired()])

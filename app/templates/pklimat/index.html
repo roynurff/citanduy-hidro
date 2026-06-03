@@ -51,7 +51,7 @@
                     <tbody>
                     {% for p in ctx.pklimats %}
                         <tr>
-                            <td class="text-start">{{ p.nama }}</td>
+                            <td class="text-start"><a href="/pklimat/{{ p.id }}" class="ms-3 text-decoration-none">{{ p.nama }}</a></td>
                             <td>{{ p.klimat.rain if p.klimat and p.klimat.rain is not none else '-' }}</td>
                             <td>{{ p.klimat.temperature if p.klimat and p.klimat.temperature is not none else '-' }}</td>
                             <td>{{ p.klimat.humidity if p.klimat and p.klimat.humidity is not none else '-' }}</td>
@@ -92,7 +92,7 @@
                     <tbody>
                     {% for p in ctx.pklimats %}
                         <tr>
-                            <td class="text-start">{{ p.nama }}</td>
+                            <td class="text-start"><a href="/pklimat/{{ p.id }}" class="ms-3 text-decoration-none">{{ p.nama }}</a></td>
                             <td>{{ p.manual.temp_min if p.manual and p.manual.temp_min is not none else '-' }}</td>
                             <td>{{ p.manual.temp_max if p.manual and p.manual.temp_max is not none else '-' }}</td>
                             <td>{{ p.manual.kelembaban if p.manual and p.manual.kelembaban is not none else '-' }}</td>

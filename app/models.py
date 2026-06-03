@@ -555,6 +555,55 @@ class RDaily(BaseModel):
             if d.get('wlevel'):
                 out[jam]['wlevel'] = (self.source in ('SC', 'SB')) and d['wlevel'] * 100 or d['wlevel']
         return out
+
+    def _24jam_klimat(self):
+        from collections import Counter
+        data_raw = json.loads(self.raw)
+        if not data_raw:
+            return {}
+        
+        # Inisialisasi 24 jam
+        base = datetime.datetime.fromisoformat(data_raw[0]['sampling']).replace(
+            minute=0, second=0, microsecond=0)
+        hours = {}
+        for i in range(24):
+            jam = base.replace(hour=i).isoformat()
+            hours[jam] = {
+                'num': 0, 'rain': 0.0,
+                'temperature': [], 'humidity': [], 
+                'wind_speed': [], 'wind_dir': [],
+                'radiation': [], 'barometer': []
+            }
+        
+        for d in data_raw:
+            sam = datetime.datetime.fromisoformat(d['sampling'])
+            jam = sam.replace(minute=0, second=0, microsecond=0).isoformat()
+            if jam not in hours:
+                continue
+            hours[jam]['num'] += 1
+            hours[jam]['rain'] += float(d.get('rain') or 0)
+            for f in ('temperature', 'humidity', 'wind_speed', 'radiation', 'barometer'):
+                val = d.get(f)
+                if val is not None:
+                    hours[jam][f].append(float(val))
+            wd = d.get('wind_dir')
+            if wd is not None:
+                hours[jam]['wind_dir'].append(str(wd))
+        
+        # Agregasi
+        result = {}
+        for jam, v in hours.items():
+            result[jam] = {
+                'num': v['num'],
+                'rain': round(v['rain'], 1),
+                'temperature': round(sum(v['temperature']) / len(v['temperature']), 1) if v['temperature'] else None,
+                'humidity': round(sum(v['humidity']) / len(v['humidity']), 1) if v['humidity'] else None,
+                'wind_speed': round(sum(v['wind_speed']) / len(v['wind_speed']), 1) if v['wind_speed'] else None,
+                'wind_dir': Counter(v['wind_dir']).most_common(1)[0][0] if v['wind_dir'] else None,
+                'radiation': round(sum(v['radiation']) / len(v['radiation']), 1) if v['radiation'] else None,
+                'barometer': round(sum(v['barometer']) / len(v['barometer']), 1) if v['barometer'] else None,
+            }
+        return result
     
     def _tma(self):
         jams = [f"{self.sampling.isoformat()}T{jam}:00:00" for jam in ('06', '11', '16')]
@@ -820,11 +869,27 @@ class Publikasi(BaseModel):
     '''
     title = pw.CharField(max_length=100, index=True)
     content = pw.TextField() # HTML content
+    saran = pw.TextField(null=True)
     filename = pw.CharField(max_length=100, null=True) # nama file publikasi
     tags = pw.CharField(max_length=100, null=True) # tag 'kekeringan', 'hujan', 'debit'
     sampling = pw.DateField(null=True) # tanggal publikasi
     cdate = pw.DateTimeField(default=datetime.datetime.now)
     thumbnail_base64 = pw.TextField(null=True) # thumbnail image in base64
+
+    @property
+    def tags_list(self):                              
+        if not self.tags:
+            return []
+        import json
+        try:
+            # tagify menyimpan sebagai JSON array of objects: [{"value":"hujan"},...]
+            parsed = json.loads(self.tags)
+            if isinstance(parsed, list):
+                return [t.get('value', t) if isinstance(t, dict) else t for t in parsed]
+        except (json.JSONDecodeError, TypeError):
+            pass
+        # fallback: comma-separated plain string
+        return [t.strip() for t in self.tags.split(',') if t.strip()]
     
     class Meta:
         indexes = (

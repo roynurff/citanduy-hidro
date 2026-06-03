@@ -1,6 +1,393 @@
-{%- extends 'base.html' %}
-{%- block title %}Pklimat Data{% endblock %}
+{% extends 'base.html' %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+{% block content %}
 
-{%- block content %}
-<h1>Pklimat Data</h1>
-{%- endblock %}
+<h2 class="border-start border-5 border-primary ps-2 fw-lighter mb-1">
+    {{ ctx.pos.nama }}
+</h2>
+<div class="col-sm-6">
+    <a href="/pklimat"><h2><i class="bi bi-arrow-left"></i></h2></a>
+</div>
+<p class="text-muted ms-3">
+    {% if ctx.pos.das %}DAS {{ ctx.pos.das.nama }} &mdash; {% endif %}
+    {% if ctx.pos.kabupaten %}{{ ctx.pos.kabupaten }}{% endif %}
+    {% if ctx.pos.elevasi %} &mdash; {{ ctx.pos.elevasi }} mdpl{% endif %}
+</p>
+
+{# ── Navigasi dropdown ── #}
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+    <div class="btn-group btn-group-sm" id="modeBtn">
+        <button class="btn {% if ctx.mode=='sehari' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+            onclick="setMode('sehari')">Sehari</button>
+        <button class="btn {% if ctx.mode=='sebulan' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+            onclick="setMode('sebulan')">Sebulan</button>
+        <button class="btn {% if ctx.mode=='setahun' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+            onclick="setMode('setahun')">Setahun</button>
+    </div>
+
+    <select class="form-select form-select-sm w-auto" id="selBulan" {% if ctx.mode=='setahun' %}disabled{% endif %}>
+        {% for b in ctx.bulan_list %}
+        <option value="{{ b }}" {% if b==ctx.bulan %}selected{% endif %}>
+            {{ ctx.nama_bulan[b-1] }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <select class="form-select form-select-sm w-auto" id="selTahun">
+        {% for y in ctx.tahun_list %}
+        <option value="{{ y }}" {% if y==ctx.tahun %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+    </select>
+
+    <button class="btn btn-sm btn-primary" onclick="navigasi()">Tampilkan</button>
+
+    {# Toggle tele/manual — hanya muncul di sebulan/setahun #}
+    <div class="btn-group btn-group-sm ms-auto" id="srcBtn" {% if ctx.mode=='sehari' %}style="display:none"{% endif %}>
+        <button class="btn btn-secondary active" id="btnTele" onclick="setSource('tele')">Telemetri</button>
+        <button class="btn btn-outline-secondary" id="btnManual" onclick="setSource('manual')">Manual</button>
+    </div>
+</div>
+
+{# ── Grafik ── #}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-semibold" id="judulGrafik">
+            {% if ctx.mode == 'sehari' %}Grafik Hari Ini — {{ ctx.today.strftime('%d %B %Y') }}
+            {% elif ctx.mode == 'sebulan' %}Grafik Bulanan — {{ ctx.nama_bulan[ctx.bulan-1] }} {{ ctx.tahun }}
+            {% else %}Grafik Tahunan — {{ ctx.tahun }}{% endif %}
+        </span>
+        <div class="btn-group btn-group-sm" id="paramBtn"></div>
+    </div>
+    <div class="card-body">
+        <canvas id="chartKlimat" height="80"></canvas>
+    </div>
+</div>
+
+{# ── Tabel ── #}
+<div class="card shadow-sm">
+    <div class="card-header">
+        <span class="fw-semibold">
+            {% if ctx.mode == 'sehari' %}Data Harian
+            {% elif ctx.mode == 'setahun' %}Data Tahunan — {{ ctx.tahun }}
+            {% else %}Data Bulanan — {{ ctx.nama_bulan[ctx.bulan-1] }} {{ ctx.tahun }}{% endif %}
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+
+        {# Tabel sehari — per jam #}
+        {% if ctx.mode == 'sehari' %}
+        <table class="table table-bordered table-hover table-sm text-center align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Jam</th>
+                    <th class="col-tele">Suhu (°C)</th>
+                    <th class="col-tele">RH (%)</th>
+                    <th class="col-tele">Kec. Angin</th>
+                    <th class="col-tele">Jml Data</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for jam, v in ctx.today_hourly.items() %}
+                {% if v.num > 0 %}
+                <tr>
+                    <td class="fw-semibold">{{ jam[11:16] }}</td>
+                    <td>{{ v.temperature if v.temperature is not none else '-' }}</td>
+                    <td>{{ v.humidity if v.humidity is not none else '-' }}</td>
+                    <td>{{ v.wind_speed if v.wind_speed is not none else '-' }}</td>
+                    <td><small class="text-muted">{{ v.num }}</small></td>
+                </tr>
+                {% endif %}
+            {% else %}
+                <tr><td colspan="5" class="text-muted">Tidak ada data hari ini</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {# Tabel sebulan #}
+        {% elif ctx.mode == 'sebulan' %}
+        <table class="table table-bordered table-hover table-sm text-center align-middle mb-0" id="tblBulanan">
+            <thead class="table-light">
+                <tr>
+                    <th>Tgl</th>
+                    {# Header tele #}
+                    <th class="col-tele">Suhu (°C)</th>
+                    <th class="col-tele">RH (%)</th>
+                    <th class="col-tele">Kec. Angin</th>
+                    <th class="col-tele">Arah Angin</th>
+                    {# Header manual #}
+                    <th class="col-manual" style="display:none">T. Min (°C)</th>
+                    <th class="col-manual" style="display:none">T. Max (°C)</th>
+                    <th class="col-manual" style="display:none">RH (%)</th>
+                    <th class="col-manual" style="display:none">Kec. Angin</th>
+                    <th class="col-manual" style="display:none">Arah Angin (°)</th>
+                    <th class="col-manual" style="display:none">Penyinaran (jam)</th>
+                    <th class="col-manual" style="display:none">Penguapan (mm)</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for tgl, d in ctx.table_data.items() %}
+                <tr {% if tgl == ctx.today %}class="table-info"{% endif %}>
+                    <td class="fw-semibold">{{ tgl.strftime('%d') }}</td>
+                    <td class="col-tele">{{ d.tele.suhu if d.tele and d.tele.suhu is not none else '-' }}</td>
+                    <td class="col-tele">{{ d.tele.humidity if d.tele and d.tele.humidity is not none else '-' }}</td>
+                    <td class="col-tele">{{ d.tele.wind_speed if d.tele and d.tele.wind_speed is not none else '-' }}</td>
+                    <td class="col-tele">{{ d.tele.wind_dir if d.tele and d.tele.wind_dir is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.temp_min if d.manual and d.manual.temp_min is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.temp_max if d.manual and d.manual.temp_max is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.kelembaban if d.manual and d.manual.kelembaban is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.kec_angin if d.manual and d.manual.kec_angin is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.arah_angin if d.manual and d.manual.arah_angin is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.lama_penyinaran if d.manual and d.manual.lama_penyinaran is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.penguapan if d.manual and d.manual.penguapan is not none else '-' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {# Tabel setahun #}
+        {% else %}
+        <table class="table table-bordered table-hover table-sm text-center align-middle mb-0" id="tblTahunan">
+            <thead class="table-light">
+                <tr>
+                    <th>Bulan</th>
+                    <th class="col-tele">Suhu (°C)</th>
+                    <th class="col-tele">RH (%)</th>
+                    <th class="col-tele">Kec. Angin</th>
+                    <th class="col-manual" style="display:none">T. Min (°C)</th>
+                    <th class="col-manual" style="display:none">T. Max (°C)</th>
+                    <th class="col-manual" style="display:none">RH (%)</th>
+                    <th class="col-manual" style="display:none">Kec. Angin</th>
+                    <th class="col-manual" style="display:none">Penyinaran (jam)</th>
+                    <th class="col-manual" style="display:none">Penguapan (mm)</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for bln, d in ctx.table_tahunan.items() %}
+                <tr {% if bln == ctx.bulan and ctx.tahun == ctx.today.year %}class="table-info"{% endif %}>
+                    <td class="fw-semibold">{{ d.nama_bulan }}</td>
+                    <td class="col-tele">{{ d.tele.suhu if d.tele and d.tele.suhu is not none else '-' }}</td>
+                    <td class="col-tele">{{ d.tele.humidity if d.tele and d.tele.humidity is not none else '-' }}</td>
+                    <td class="col-tele">{{ d.tele.wind_speed if d.tele and d.tele.wind_speed is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.temp_min if d.manual and d.manual.temp_min is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.temp_max if d.manual and d.manual.temp_max is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.kelembaban if d.manual and d.manual.kelembaban is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.kec_angin if d.manual and d.manual.kec_angin is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.lama_penyinaran if d.manual and d.manual.lama_penyinaran is not none else '-' }}</td>
+                    <td class="col-manual" style="display:none">{{ d.manual.penguapan if d.manual and d.manual.penguapan is not none else '-' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Data dari server ──
+const mode       = "{{ ctx.mode }}";
+const todayHourly = {
+    {% for jam, v in ctx.today_hourly.items() %}
+    "{{ jam[11:16] }}": {
+        suhu: {{ v.temperature if v.temperature is not none else 'null' }},
+        humidity: {{ v.humidity if v.humidity is not none else 'null' }},
+        wind_speed: {{ v.wind_speed if v.wind_speed is not none else 'null' }},
+        num: {{ v.num }}
+    },
+    {% endfor %}
+};
+
+const telePerHari = {{ ctx.tele_per_hari | tojson }};
+const manualPerHari = {{ ctx.manual_per_hari | tojson }};
+
+const teleTahunan = {
+    {% for bln, d in ctx.tele_tahunan.items() %}
+    {{ bln }}: {
+        suhu: {{ d.suhu if d.suhu is not none else 'null' }},
+        humidity: {{ d.humidity if d.humidity is not none else 'null' }},
+        wind_speed: {{ d.wind_speed if d.wind_speed is not none else 'null' }},
+    },
+    {% endfor %}
+};
+
+const manualTahunan = {
+    {% for bln, d in ctx.manual_tahunan.items() %}
+    {{ bln }}: {
+        temp_min: {{ d.temp_min if d.temp_min is not none else 'null' }},
+        temp_max: {{ d.temp_max if d.temp_max is not none else 'null' }},
+        kelembaban: {{ d.kelembaban if d.kelembaban is not none else 'null' }},
+        kec_angin: {{ d.kec_angin if d.kec_angin is not none else 'null' }},
+        lama_penyinaran: {{ d.lama_penyinaran if d.lama_penyinaran is not none else 'null' }},
+        penguapan: {{ d.penguapan if d.penguapan is not none else 'null' }},
+    },
+    {% endfor %}
+};
+
+const namaBulan = {{ ctx.nama_bulan | tojson }};
+
+// ── Konfigurasi parameter ──
+const paramTele = {
+    suhu:       { label: 'Suhu (°C)',      color: 'rgb(255, 99, 132)'  },
+    humidity:   { label: 'Kelembaban (%)', color: 'rgb(54, 162, 235)'  },
+    wind_speed: { label: 'Kec. Angin',     color: 'rgb(75, 192, 192)'  },
+};
+const paramManual = {
+    temp_min:        { label: 'Suhu Min (°C)',       color: 'rgb(54, 162, 235)'   },
+    temp_max:        { label: 'Suhu Max (°C)',        color: 'rgb(255, 99, 132)'   },
+    kelembaban:      { label: 'Kelembaban (%)',       color: 'rgb(153, 102, 255)'  },
+    kec_angin:       { label: 'Kec. Angin',           color: 'rgb(75, 192, 192)'   },
+    lama_penyinaran: { label: 'Lama Penyinaran (jam)', color: 'rgb(255, 205, 86)'  },
+    penguapan:       { label: 'Penguapan (mm)',        color: 'rgb(255, 159, 64)'  },
+};
+
+let currentSource = 'tele';
+let currentParam  = 'suhu';
+let chart = null;
+
+// ── Init chart ──
+function buildParamButtons(params) {
+    const container = document.getElementById('paramBtn');
+    container.innerHTML = '';
+    Object.entries(params).forEach(([key, cfg], i) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn ' + (i === 0 ? 'btn-primary' : 'btn-outline-primary');
+        btn.textContent = cfg.label;
+        btn.dataset.param = key;
+        btn.addEventListener('click', function() {
+            container.querySelectorAll('button').forEach(b => {
+                b.classList.replace('btn-primary', 'btn-outline-primary');
+            });
+            this.classList.replace('btn-outline-primary', 'btn-primary');
+            currentParam = key;
+            updateChart();
+        });
+        container.appendChild(btn);
+    });
+    currentParam = Object.keys(params)[0];
+}
+
+function getChartData() {
+    let labels = [], values = [], color = 'rgb(255,99,132)';
+
+    if (mode === 'sehari') {
+        // Per jam, telemetri only
+        const filtered = Object.entries(todayHourly).filter(([k,v]) => v.num > 0);
+        labels = filtered.map(([k]) => k);
+        values = filtered.map(([k,v]) => v[currentParam]);
+        color  = paramTele[currentParam]?.color || color;
+
+    } else if (mode === 'sebulan') {
+        if (currentSource === 'tele') {
+            labels = Object.keys(telePerHari).map(d => d);
+            values = labels.map(d => telePerHari[d]?.[currentParam] ?? null);
+            color  = paramTele[currentParam]?.color || color;
+        } else {
+            labels = Object.keys(manualPerHari).map(d => d);
+            values = labels.map(d => manualPerHari[d]?.[currentParam] ?? null);
+            color  = paramManual[currentParam]?.color || color;
+        }
+
+    } else { // setahun
+        labels = namaBulan;
+        if (currentSource === 'tele') {
+            values = Object.values(teleTahunan).map(d => d[currentParam] ?? null);
+            color  = paramTele[currentParam]?.color || color;
+        } else {
+            values = Object.values(manualTahunan).map(d => d[currentParam] ?? null);
+            color  = paramManual[currentParam]?.color || color;
+        }
+    }
+    return { labels, values, color };
+}
+
+function updateChart() {
+    const { labels, values, color } = getChartData();
+    if (!chart) {
+        const ctx_el = document.getElementById('chartKlimat').getContext('2d');
+        chart = new Chart(ctx_el, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    borderColor: color,
+                    backgroundColor: color + '20',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    spanGaps: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: false }
+                }
+            }
+        });
+    } else {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = values;
+        chart.data.datasets[0].borderColor = color;
+        chart.data.datasets[0].backgroundColor = color + '20';
+        chart.update();
+    }
+}
+
+// ── Toggle sumber data ──
+function setSource(src) {
+    currentSource = src;
+    document.getElementById('btnTele').className   = 'btn btn-' + (src==='tele'   ? '' : 'outline-') + 'secondary';
+    document.getElementById('btnManual').className = 'btn btn-' + (src==='manual' ? '' : 'outline-') + 'secondary';
+
+    // Update kolom tabel
+    document.querySelectorAll('.col-tele').forEach(el =>
+        el.style.display = src === 'tele' ? '' : 'none');
+    document.querySelectorAll('.col-manual').forEach(el =>
+        el.style.display = src === 'manual' ? '' : 'none');
+
+    // Rebuild param buttons
+    buildParamButtons(src === 'tele' ? paramTele : paramManual);
+    updateChart();
+}
+
+// ── Mode sehari/sebulan/setahun ──
+function setMode(m) {
+    const bulan  = document.getElementById('selBulan');
+    const srcBtn = document.getElementById('srcBtn');
+    bulan.disabled = m === 'setahun';
+    srcBtn.style.display = m === 'sehari' ? 'none' : '';
+    navigasi(m);
+}
+
+// ── Navigasi ──
+function navigasi(overrideMode) {
+    const m = overrideMode || document.querySelector('#modeBtn .btn-primary')?.textContent.trim().toLowerCase() || mode;
+    const y = document.getElementById('selTahun').value;
+    const b = document.getElementById('selBulan').value;
+    window.location.href = `?mode=${m}&y=${y}&m=${b}`;
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', () => {
+    if (mode === 'sehari') {
+        buildParamButtons(paramTele);
+        document.getElementById('srcBtn').style.display = 'none';
+    } else if (mode === 'sebulan') {
+        buildParamButtons(paramTele); // default tele
+        setSource('tele');
+    } else {
+        buildParamButtons(paramTele);
+        setSource('tele');
+    }
+    updateChart();
+});
+</script>
+
+{% endblock %}

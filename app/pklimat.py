@@ -155,15 +155,168 @@ def show(id):
         pos = Pos.get(Pos.id==id, Pos.tipe=='3')
     except Pos.DoesNotExist:
         abort(404)
-    (_sampling, sampling, sampling_) = get_sampling(request.args.get('s', None))
-    _sampling = sampling.replace(year=sampling.year - 1)
-    sampling_ = sampling.replace(year=sampling.year + 1)
-    if datetime.date.today().year == sampling.year:
-        sampling_ = None
+
+    import calendar
+
+    # Navigasi — ambil dari query param
+    today = datetime.date.today()
+    tahun = int(request.args.get('y', today.year))
+    bulan = int(request.args.get('m', today.month))
+    mode  = request.args.get('mode', 'sehari')  # sehari, sebulan, setahun
+
+    sampling = datetime.date(tahun, bulan, 1)
+    days_in_month = calendar.monthrange(tahun, bulan)[1]
+    next_month = (sampling.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+
+    # Tahun tersedia (untuk dropdown)
+    tahun_list = list(range(2023, today.year + 1))
+    bulan_list = list(range(1, 13))
+
+    # ── Data harian (sebulan) ──
+    rdailies_bulan = {
+        r.sampling: r for r in RDaily.select().where(
+            RDaily.pos == pos,
+            RDaily.sampling >= sampling,
+            RDaily.sampling < next_month
+        )
+    }
+    manuals_bulan = {
+        m.sampling: m for m in ManualKlim.select().where(
+            ManualKlim.pos == pos,
+            ManualKlim.sampling >= sampling,
+            ManualKlim.sampling < next_month
+        )
+    }
+
+    # ── Data tahunan (agregasi per bulan) ──
+    tahun_start = datetime.date(tahun, 1, 1)
+    tahun_end   = datetime.date(tahun, 12, 31)
+    rdailies_tahun  = list(RDaily.select().where(
+        RDaily.pos == pos,
+        RDaily.sampling >= tahun_start,
+        RDaily.sampling <= tahun_end
+    ))
+    manuals_tahun = list(ManualKlim.select().where(
+        ManualKlim.pos == pos,
+        ManualKlim.sampling >= tahun_start,
+        ManualKlim.sampling <= tahun_end
+    ))
+
+    # Agregasi telemetri per bulan (setahun)
+    tele_per_bulan = {}
+    for r in rdailies_tahun:
+        bln = r.sampling.month
+        if bln not in tele_per_bulan:
+            tele_per_bulan[bln] = {'suhu': [], 'humidity': [], 'wind_speed': []}
+        try:
+            jam_data = r._24jam_klimat()
+            temps  = [v['temperature'] for v in jam_data.values() if v['temperature'] is not None]
+            humids = [v['humidity']    for v in jam_data.values() if v['humidity']    is not None]
+            winds  = [v['wind_speed']  for v in jam_data.values() if v['wind_speed']  is not None]
+            if temps:  tele_per_bulan[bln]['suhu'].append(sum(temps)/len(temps))
+            if humids: tele_per_bulan[bln]['humidity'].append(sum(humids)/len(humids))
+            if winds:  tele_per_bulan[bln]['wind_speed'].append(sum(winds)/len(winds))
+        except Exception:
+            pass
+
+    tele_tahunan = {}
+    for bln in range(1, 13):
+        d = tele_per_bulan.get(bln, {})
+        tele_tahunan[bln] = {
+            'suhu':       round(sum(d.get('suhu', []))/len(d['suhu']), 1)       if d.get('suhu')       else None,
+            'humidity':   round(sum(d.get('humidity', []))/len(d['humidity']), 1) if d.get('humidity')   else None,
+            'wind_speed': round(sum(d.get('wind_speed', []))/len(d['wind_speed']), 1) if d.get('wind_speed') else None,
+        }
+
+    # Agregasi manual per bulan (setahun)
+    manual_per_bulan = {}
+    for m in manuals_tahun:
+        bln = m.sampling.month
+        if bln not in manual_per_bulan:
+            manual_per_bulan[bln] = {
+                'temp_min': [], 'temp_max': [], 'kelembaban': [],
+                'kec_angin': [], 'lama_penyinaran': [], 'penguapan': []
+            }
+        for f in ('temp_min', 'temp_max', 'kelembaban', 'kec_angin', 'lama_penyinaran', 'penguapan'):
+            val = getattr(m, f)
+            if val is not None:
+                manual_per_bulan[bln][f].append(val)
+
+    manual_tahunan = {}
+    for bln in range(1, 13):
+        d = manual_per_bulan.get(bln, {})
+        manual_tahunan[bln] = {
+            f: round(sum(d.get(f, []))/len(d[f]), 1) if d.get(f) else None
+            for f in ('temp_min', 'temp_max', 'kelembaban', 'kec_angin', 'lama_penyinaran', 'penguapan')
+        }
+
+    # ── Data hari ini untuk grafik sehari ──
+    today_rd = rdailies_bulan.get(today) or RDaily.select().where(
+        RDaily.pos == pos, RDaily.sampling == today
+    ).first()
+    today_hourly = today_rd._24jam_klimat() if today_rd else {}
+
+    # ── Tabel bulanan ──
+    table_data = {}
+    for d in range(1, days_in_month + 1):
+        tgl = datetime.date(tahun, bulan, d)
+        rd  = rdailies_bulan.get(tgl)
+        mk  = manuals_bulan.get(tgl)
+        tele = None
+        if rd:
+            try:
+                jam_data = rd._24jam_klimat()
+                temps  = [v['temperature'] for v in jam_data.values() if v['temperature'] is not None]
+                humids = [v['humidity']    for v in jam_data.values() if v['humidity']    is not None]
+                winds  = [v['wind_speed']  for v in jam_data.values() if v['wind_speed']  is not None]
+                wdirs  = [v['wind_dir']    for v in jam_data.values() if v['wind_dir']    is not None]
+                from collections import Counter
+                tele = {
+                    'suhu':       round(sum(temps)/len(temps), 1)   if temps  else None,
+                    'humidity':   round(sum(humids)/len(humids), 1) if humids else None,
+                    'wind_speed': round(sum(winds)/len(winds), 1)   if winds  else None,
+                    'wind_dir':   Counter(wdirs).most_common(1)[0][0] if wdirs else None,
+                }
+            except Exception:
+                tele = None
+        table_data[tgl] = {'tele': tele, 'manual': mk}
+
+    # ── Tabel tahunan ──
+    table_tahunan = {}
+    for bln in range(1, 13):
+        table_tahunan[bln] = {
+            'tele':   tele_tahunan.get(bln),
+            'manual': manual_tahunan.get(bln),
+            'nama_bulan': datetime.date(tahun, bln, 1).strftime('%b')
+        }
+
+    NAMA_BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun',
+                  'Jul','Ags','Sep','Okt','Nov','Des']
+
     ctx = {
         'pos': pos,
-        'sampling': sampling,
-        '_sampling': _sampling,
-        'sampling_': sampling_,
+        'mode': mode,
+        'tahun': tahun,
+        'bulan': bulan,
+        'tahun_list': tahun_list,
+        'bulan_list': bulan_list,
+        'nama_bulan': NAMA_BULAN,
+        'today': today,
+        'today_hourly': today_hourly,
+        'table_data': table_data,
+        'table_tahunan': table_tahunan,
+        'tele_tahunan': tele_tahunan,
+        'manual_tahunan': manual_tahunan,
+        'tele_per_hari': {
+            tgl.strftime('%d'): d['tele']
+            for tgl, d in table_data.items() if d['tele']
+        },
+        'manual_per_hari': {
+            tgl.strftime('%d'): {
+                f: getattr(d['manual'], f)
+                for f in ('temp_min','temp_max','kelembaban','kec_angin','lama_penyinaran','penguapan')
+            }
+            for tgl, d in table_data.items() if d['manual']
+        },
     }
     return render_template('pklimat/show.html', ctx=ctx)

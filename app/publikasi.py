@@ -1,4 +1,5 @@
 import datetime
+import os
 from flask import Blueprint, render_template, request, abort, url_for, redirect
 from flask_login import current_user
 from peewee import DoesNotExist
@@ -11,7 +12,7 @@ import base64
 
 from app import get_sampling
 from app.models import Pos, Publikasi
-from app.forms import PublikasiForm
+from app.forms import PublikasiForm, EditPublikasiForm
 bp = Blueprint('publikasi', __name__, url_prefix='/pub')
 
 
@@ -62,6 +63,13 @@ def create_thumbnail_base64(pdf_file_object):
         print(f"An error occurred: {e}")
         return None
 
+def _admin_required():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+
+
+# ── Public routes ─────────────────────────────────────────────
+
 @bp.route('/')
 def index():
     (_sampling, sampling, sampling_) = get_sampling(request.args.get('s', None))
@@ -89,80 +97,28 @@ def index():
     }
     return render_template('publikasi/index.html', ctx=ctx)
 
+@bp.route('/<int:pub_id>')
+def detail_pub(pub_id):
+    """Halaman detail publik untuk satu publikasi."""
+    try:
+        pub = Publikasi.get(Publikasi.id == pub_id)
+    except DoesNotExist:
+        abort(404)
+    return render_template('publikasi/detail.html', pub=pub)
+ 
+
+# ── Admin routes ──────────────────────────────────────────────
 
 @bp.route('/adm', methods=['GET'])
 def get_all_pub():
-    if not current_user.is_authenticated or not current_user.is_admin:
-        abort(403)
+    _admin_required()
     pubs = Publikasi.select().order_by(Publikasi.sampling.desc(), Publikasi.cdate.desc())
     return render_template('publikasi/adm/index.html', ctx={'pubs': pubs})
 
 
-@bp.route('/adm/<int:pub_id>', methods=['PATCH'])
-def update_pub(pub_id):
-    if not current_user.is_authenticated or not current_user.is_admin:
-        abort(403)
-    try:
-        pub = Publikasi.get(Publikasi.id==pub_id)
-    except DoesNotExist:
-        abort(404)
-    title = request.form.get('title', None)
-    filename = request.form.get('filename', None)
-    body = request.form.get('body', None)
-    tags = request.form.get('tags', None)
-    sampling_str = request.form.get('sampling', None)
-    thumbnail_base64 = request.form.get('thumbnail_base64', None)
-    if title:
-        pub.title = title
-    if filename:
-        try:
-            filename = int(filename)
-            pos = Pos.get(Pos.id==filename, Pos.tipe=='5')
-            pub.pos = pos
-        except ValueError:
-            abort(400, 'pos_id must be integer')
-        except DoesNotExist:
-            abort(400, 'pos_id not found or not tipe 5')
-    if body:
-        pub.body = body
-    if tags is not None:
-        pub.tags = tags
-    if sampling_str:
-        try:
-            sampling = datetime.datetime.strptime(sampling_str, '%Y-%m-%d').date()
-            pub.sampling = sampling
-        except ValueError:
-            abort(400, 'sampling must be in YYYY-MM-DD format')
-    if thumbnail_base64 is not None:
-        pub.thumbnail_base64 = thumbnail_base64
-    try:
-        pub.save()
-    except Exception as e:
-        abort(500, 'Failed to update publikasi: {}'.format(str(e)))
-    return render_template('publikasi/adm_one.html', ctx={'pub': pub})
-
-
-@bp.route('/adm/<int:pub_id>', methods=['GET', 'POST'])
-def delete_pub(pub_id):
-    if not current_user.is_authenticated or not current_user.is_admin:
-        abort(403)
-    try:
-        pub = Publikasi.get(Publikasi.id==pub_id)
-    except DoesNotExist:
-        abort(404)
-    if request.method == 'POST':
-        try:
-            pub.delete_instance()
-        except Exception as e:
-            abort(500, 'Failed to delete publikasi: {}'.format(str(e)))
-        return redirect(url_for('publikasi.get_all_pub'))
-    return render_template('publikasi/adm/confirm_del.html', ctx={'pub': pub})
-
-
 @bp.route('/adm/add', methods=['GET', 'POST'])
 def add_pub():
-    if not current_user.is_authenticated or not current_user.is_admin:
-        abort(403)
+    _admin_required()
     form = PublikasiForm()
     if form.validate_on_submit():
         f = form.filename.data
@@ -170,16 +126,102 @@ def add_pub():
         if thumbnail_base64 is None:
             abort(500, 'Failed to create thumbnail from PDF')
         filename = secure_filename(f.filename)
-        new_pub = Publikasi.create(
+
+        f.seek(0)
+        f.save(f'./app/static/pub/{filename}')
+        Publikasi.create(
             title=form.title.data,
             content=form.content.data,
+            saran=form.saran.data or None,
             tags=form.tags.data,
             sampling=form.sampling.data,
             thumbnail_base64=thumbnail_base64,
-            filename=filename
+            filename=filename,
         )
-        f.seek(0)
-        f.save(f'./app/static/pub/{filename}')
         return redirect(url_for('publikasi.get_all_pub'))
-    else:
-        return render_template('publikasi/adm/add.html', ctx={'form': form, 'errors': form.errors})
+    return render_template('publikasi/adm/add.html', ctx={'form': form, 'errors': form.errors})
+ 
+ 
+@bp.route('/adm/<int:pub_id>/edit', methods=['GET', 'POST'])
+def edit_pub(pub_id):
+    """Edit publikasi yang sudah ada."""
+    _admin_required()
+    try:
+        pub = Publikasi.get(Publikasi.id == pub_id)
+    except DoesNotExist:
+        abort(404)
+ 
+    form = EditPublikasiForm(obj=pub)  # pre-fill dari model
+ 
+    if form.validate_on_submit():
+        pub.title   = form.title.data
+        pub.content = form.content.data
+        pub.saran   = form.saran.data or None
+        pub.tags    = form.tags.data
+        pub.sampling = form.sampling.data
+ 
+        f = form.filename.data
+        if f and f.filename:
+            # Ada file baru — generate thumbnail, simpan, update record
+            thumbnail_base64 = create_thumbnail_base64(f)
+            if thumbnail_base64 is None:
+                abort(500, 'Failed to create thumbnail from PDF')
+            filename = secure_filename(f.filename)
+            pub.thumbnail_base64 = thumbnail_base64
+            pub.filename = filename
+            f.seek(0)
+            f.save(f'./app/static/pub/{filename}')
+ 
+        pub.save()
+        return redirect(url_for('publikasi.get_all_pub'))
+ 
+    return render_template('publikasi/adm/edit.html', ctx={'form': form, 'pub': pub, 'errors': form.errors})
+ 
+ 
+@bp.route('/adm/<int:pub_id>/delete', methods=['GET', 'POST'])
+def delete_pub(pub_id):
+    """Konfirmasi lalu hapus publikasi."""
+    _admin_required()
+    try:
+        pub = Publikasi.get(Publikasi.id == pub_id)
+    except DoesNotExist:
+        abort(404)
+    if request.method == 'POST':
+        # Hapus file PDF dari disk kalau ada
+        if pub.filename:
+            pdf_path = f'./app/static/pub/{pub.filename}'
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        pub.delete_instance()
+        return redirect(url_for('publikasi.get_all_pub'))
+    return render_template('publikasi/adm/confirm_del.html', ctx={'pub': pub})
+ 
+ 
+# ── Route lama (PATCH /adm/<id>) — dipertahankan kalau ada client API ────────
+ 
+@bp.route('/adm/<int:pub_id>', methods=['PATCH'])
+def update_pub(pub_id):
+    """Legacy PATCH endpoint untuk API client."""
+    _admin_required()
+    try:
+        pub = Publikasi.get(Publikasi.id == pub_id)
+    except DoesNotExist:
+        abort(404)
+    title          = request.form.get('title')
+    body           = request.form.get('body')
+    tags           = request.form.get('tags')
+    saran          = request.form.get('saran')
+    sampling_str   = request.form.get('sampling')
+    thumbnail_b64  = request.form.get('thumbnail_base64')
+    if title:         pub.title = title
+    if body:          pub.body = body
+    if tags is not None: pub.tags = tags
+    if saran is not None: pub.saran = saran
+    if sampling_str:
+        try:
+            pub.sampling = datetime.datetime.strptime(sampling_str, '%Y-%m-%d').date()
+        except ValueError:
+            abort(400, 'sampling must be YYYY-MM-DD')
+    if thumbnail_b64 is not None: pub.thumbnail_base64 = thumbnail_b64
+    pub.save()
+    return render_template('publikasi/adm_one.html', ctx={'pub': pub})

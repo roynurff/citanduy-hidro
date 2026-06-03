@@ -2,8 +2,6 @@
 {% block title %}Publikasi{% endblock %}
 {%- block content %}
 <h2 class="border-start border-5 border-danger ps-2 fw-lighter">Admin Publikasi <a href="/pub/adm/add" class="ms-5 btn btn-outline-primary btn-sm">tambah</a></h2>
-<div class="text-end mb-3">
-</div>
 <div class="container mb-3">
     <div class="row">
         <div class="col">
@@ -18,17 +16,24 @@
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">{{ pub.title }}</h5>
-                    <p class="card-text">{{ pub.content }}</p>
+                    <p class="card-text text-muted small">{{ pub.content }}</p>
+                    {%- if pub.saran %}
+                    <p class="small text-warning-emphasis mb-0">
+                        <i class="bi bi-lightbulb"></i> Ada saran
+                    </p>
+                    {%- endif %}
                 </div>
-                <div class="card-footer small d-flex justify-content-between">
+                <div class="card-footer small d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-clock"></i> {{ pub.sampling }}</span>
-                    <span class="text-right">
+                    <span class="d-flex align-items-center gap-2">
                         {%- if pub.filename %}
-                        <a href="/static/pub/{{ pub.filename }}"><i class="bi bi-file-earmark-pdf"></i></a>
+                        <a href="/static/pub/{{ pub.filename }}" title="Lihat PDF"><i class="bi bi-file-earmark-pdf"></i></a>
                         {%- else %}
                         <i class="bi bi-file-earmark-pdf text-secondary"></i>
                         {%- endif %}
-                        <a href="{{ url_for('publikasi.delete_pub', pub_id=pub.id) }}" class="ms-2" title="Hapus..."><i class="bi bi-trash3 text-danger"></i></a></span>
+                        <a href="{{ url_for('publikasi.edit_pub', pub_id=pub.id) }}" title="Edit"><i class="bi bi-pencil text-primary"></i></a>
+                        <a href="{{ url_for('publikasi.delete_pub', pub_id=pub.id) }}" title="Hapus..." onclick="return confirm('Hapus publikasi ini?')"><i class="bi bi-trash3 text-danger"></i></a>
+                    </span>
                 </div>
             </div>
         </div>

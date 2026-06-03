@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}{{ pub.title }} — Publikasi{% endblock %}
+{%- block content %}
+<h2 class="border-start border-5 border-danger ps-2 fw-lighter mb-1">{{ pub.title }}</h2>
+<p class="text-muted small mb-4">
+    <i class="bi bi-calendar3"></i> {{ pub.sampling }}
+    {%- if pub.tags %}
+    &nbsp;&nbsp;
+    {%- for tag in pub.tags_list %}
+    <span class="badge bg-secondary fw-normal">{{ tag }}</span>
+    {%- endfor %}
+    {%- endif %}
+</p>
+<div class="container-fluid px-4">
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            {%- if pub.filename %}
+            <iframe
+                src="/static/pub/{{ pub.filename }}"
+                width="100%"
+                style="border: 1px solid #dee2e6; border-radius: 8px; min-height: 500px; height: 70vh;"
+                title="{{ pub.title }}">
+                <p>Browser tidak mendukung preview PDF.
+                <a href="/static/pub/{{ pub.filename }}">Download di sini</a>.</p>
+            </iframe>
+            {%- elif pub.thumbnail_base64 %}
+            <div class="text-center">
+                <img src="{{ pub.thumbnail_base64 }}" class="img-fluid rounded shadow-sm" alt="Thumbnail {{ pub.title }}">
+            </div>
+            {%- endif %}
+        </div>
+
+        <div class="col-lg-5 d-flex flex-column gap-3">
+
+            <div class="card">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-file-text"></i> Ringkasan
+                </div>
+                <div class="card-body">
+                    <p class="card-text" style="white-space: pre-line;">{{ pub.content }}</p>
+                </div>
+            </div>
+
+            {%- if pub.saran %}
+            <div class="card border-warning">
+                <div class="card-header bg-warning bg-opacity-25 fw-semibold text-warning-emphasis">
+                    <i class="bi bi-lightbulb"></i> Saran Tim Hidrologi
+                </div>
+                <div class="card-body">
+                    <p class="card-text" style="white-space: pre-line;">{{ pub.saran }}</p>
+                </div>
+            </div>
+            {%- endif %}
+
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <a href="/pub/" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Kembali
+        </a>
+        {%- if pub.filename %}
+        <a href="/static/pub/{{ pub.filename }}" class="btn btn-danger" target="_blank">
+            <i class="bi bi-file-earmark-pdf"></i> Download PDF
+        </a>
+        {%- else %}
+        <button class="btn btn-outline-secondary disabled" disabled>
+            <i class="bi bi-file-earmark-pdf"></i> File tidak tersedia
+        </button>
+        {%- endif %}
+    </div>
+
+</div>
+{%- endblock %}

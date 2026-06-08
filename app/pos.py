@@ -66,7 +66,7 @@ def add_data_ka():
             lokasi_id = request.form.get('lokasi_id')
             sungai = form.sungai.data.strip() if form.sungai.data else None
             kota_kabupaten = form.kota_kabupaten.data.strip() if form.kota_kabupaten.data else None
-            pi = form.pi.data
+            # pi = form.pi.data
             keterangan = form.keterangan.data.strip() if form.keterangan.data else None
             periode = int(form.periode.data)
             sampling = form.sampling.data  # Required DateField
@@ -117,7 +117,7 @@ def add_data_ka():
                 kota_kabupaten=kota_kabupaten,
                 sampling=sampling,
                 periode=periode,
-                pi=pi,
+                pi=None,
                 keterangan=keterangan,
                 ll=ll,
                 doc_path=doc_filename,
@@ -142,6 +142,13 @@ def add_data_ka():
                                 satuan=param_def.get('satuan'),
                                 nilai=str(nilai)
                             )
+
+                # Hitung PI otomatis
+                pi_hitung = hitung_pi_dari_parameters(parameters)
+                if pi_hitung is not None:
+                    hu.pi = pi_hitung
+                    hu.save()
+
             except json.JSONDecodeError:
                 pass  # Skip parameters if JSON invalid
             
@@ -184,7 +191,7 @@ def edit_data_ka(record_id):
             lokasi_id = request.form.get('lokasi_id')
             sungai = form.sungai.data.strip() if form.sungai.data else None
             kota_kabupaten = form.kota_kabupaten.data.strip() if form.kota_kabupaten.data else None
-            pi = form.pi.data
+            # pi = form.pi.data
             keterangan = form.keterangan.data.strip() if form.keterangan.data else None
             periode = int(form.periode.data)
             lembaga = form.lembaga.data.strip() if form.lembaga.data else None
@@ -215,7 +222,7 @@ def edit_data_ka(record_id):
             hu.kota_kabupaten = kota_kabupaten
             hu.sampling = sampling
             hu.periode = periode
-            hu.pi = pi
+            # hu.pi = pi
             hu.keterangan = keterangan
             hu.ll = ll
             hu.lembaga = lembaga
@@ -262,6 +269,13 @@ def edit_data_ka(record_id):
                                 satuan=param_def.get('satuan'),
                                 nilai=str(nilai)
                             )
+
+                # Hitung PI otomatis
+                pi_hitung = hitung_pi_dari_parameters(parameters)
+                if pi_hitung is not None:
+                    hu.pi = pi_hitung
+                    hu.save()
+
             except json.JSONDecodeError:
                 pass  # Skip parameters if JSON invalid
             
@@ -281,7 +295,7 @@ def edit_data_ka(record_id):
         form.sampling.data = hu.sampling
         form.periode.data = str(hu.periode)
         form.ll.data = hu.ll
-        form.pi.data = hu.pi
+        # form.pi.data = hu.pi
         form.keterangan.data = hu.keterangan
         form.lembaga.data = hu.lembaga
         form.kelas_baku_mutu.data = str(hu.kelas_baku_mutu) if hu.kelas_baku_mutu else '2'
@@ -715,6 +729,118 @@ def index():
             p.vendor = op[p.id].source
     return render_template('pos/index.html', poses=poses)
 
+
+import math
+
+def hitung_pi_dari_parameters(parameter_dict):
+    """
+    Hitung Indeks Pencemaran dari dict {nama_parameter: nilai_string}
+    Return float PI atau None kalau data tidak cukup
+    """
+    BAKU_MUTU = {
+        'Temperatur':                         {'max': None,  'type': 'temperatur'},
+        'Padatan Terlarut Total (TDS)':       {'max': 1000,  'type': 'normal'},
+        'Padatan Tersuspensi Total (TSS)':    {'max': 50,    'type': 'normal'},
+        'Derajat Keasaman (pH)':              {'max': 7.5,   'type': 'ph'},
+        'Kebutuhan Oksigen Biokimiawi (BOD)': {'max': 3,     'type': 'normal'},
+        'Kebutuhan Oksigen Kimiawi (COD)':    {'max': 25,    'type': 'normal'},
+        'Oksigen Terlarut (DO)':              {'max': 4,     'type': 'do'},
+        'Nitrat (sebagai N)':                 {'max': 10,    'type': 'normal'},
+        'Nitrit (sebagai N)':                 {'max': 0.06,  'type': 'normal'},
+        'Total Fosfat (Sebagai P)':           {'max': 0.2,   'type': 'normal'},
+        'Kadmium (Cd) Terlarut':              {'max': 0.01,  'type': 'normal'},
+        'Seng (Zn) Terlarut':                 {'max': 0.05,  'type': 'normal'},
+        'Tembaga (Cu) Terlarut':              {'max': 0.02,  'type': 'normal'},
+        'Deterjen Total':                     {'max': 0.2,   'type': 'normal'},
+        'Fecal Coliform':                     {'max': 1000,  'type': 'normal'},
+        'Total Coliform':                     {'max': 5000,  'type': 'normal'},
+        'Kekeruhan':                          {'max': None,  'type': 'skip'},  # skip
+        'Temperatur Udara':                   {'max': None,  'type': 'skip'},  # hanya isian
+    }
+
+    def parse_nilai(s):
+        try:
+            return float(str(s).replace('<', '').replace('>', '').strip())
+        except (ValueError, TypeError):
+            return None
+
+    # Ambil temperatur udara untuk hitung Ci temperatur
+    t_udara = parse_nilai(parameter_dict.get('Temperatur Udara'))
+    t_air   = parse_nilai(parameter_dict.get('Temperatur'))
+
+    ci_baru_vals = []
+
+    for nama, bm in BAKU_MUTU.items():
+        if bm['type'] == 'skip':
+            continue
+
+        nilai_str = parameter_dict.get(nama)
+        if nilai_str is None:
+            continue
+
+        ci = parse_nilai(nilai_str)
+        if ci is None:
+            continue
+
+        tipe = bm['type']
+        lij  = bm['max']
+
+        if tipe == 'temperatur':
+            # Ci = ABS(t_air - t_udara), wajib ada keduanya
+            if t_udara is None or t_air is None:
+                continue
+            ci = abs(t_air - t_udara)
+            lij = 1.5
+            # Rumus ci_baru temperatur
+            if ci < 0 or ci > 3:
+                if ci > 1.5:
+                    ci_baru = (ci - 1.5) / (3 - 1.5)
+                else:
+                    ci_baru = (ci - 1.5) / (0 - 1.5)
+            else:
+                ci_baru = 0.0
+
+        elif tipe == 'ph':
+            if lij is None:
+                continue
+            ci_ci_max = ci / lij  # Ci/7.5
+            # ci_baru pH
+            if ci < 6 or ci > 9:
+                if ci > 7.5:
+                    ci_baru = (ci - 7.5) / (9 - 7.5)
+                else:
+                    ci_baru = (ci - 7.5) / (6 - 7.5)
+            else:
+                ci_baru = 0.0
+
+        elif tipe == 'do':
+            if lij is None:
+                continue
+            # ci_baru DO = ((7-Ci)/(7-Lij))/Lij
+            if (7 - lij) == 0:
+                continue
+            ci_baru = ((7 - ci) / (7 - lij)) / lij
+
+        else:  # normal
+            if lij is None:
+                continue
+            ci_ci_max = ci / lij
+            if ci_ci_max > 1:
+                ci_baru = 1 + 5 * math.log10(ci_ci_max)
+            else:
+                ci_baru = ci_ci_max
+
+        ci_baru_vals.append(round(ci_baru, 2))
+
+    if not ci_baru_vals:
+        return None
+
+    max_val = max(ci_baru_vals)
+    avg_val = sum(ci_baru_vals) / len(ci_baru_vals)
+    pi = math.sqrt((avg_val**2 + max_val**2) / 2)
+    return round(pi, 2)
+    
+
 @bp.route('/ka/export/<int:record_id>')
 @login_required
 def export_ka_pdf(record_id):
@@ -729,67 +855,113 @@ def export_ka_pdf(record_id):
     # Hitung kolom tambahan untuk tabel PDF
     # Baku mutu kelas 2 (sesuai Kepmen LH 115/2003)
     BAKU_MUTU_KELAS2 = {
-        'Temperatur':                     {'max': 3,    'satuan': '°C'},
-        'Padatan Terlarut Total (TDS)':   {'max': 1000,  'satuan': 'mg/L'},
-        'Padatan Tersuspensi Total (TSS)':{'max': 50,    'satuan': 'mg/L'},
-        'Derajat Keasaman (pH)':          {'max': 7.5,     'satuan': '-'},
-        'Kebutuhan Oksigen Biokimiawi (BOD)': {'max': 3, 'satuan': 'mg/L'},
-        'Kebutuhan Oksigen Kimiawi (COD)':    {'max': 25,'satuan': 'mg/L'},
-        'Oksigen Terlarut (DO)':          {'max': 4,     'satuan': 'mg/L'},
-        'Nitrat (sebagai N)':             {'max': 10,    'satuan': 'mg/L'},
-        'Nitrit (sebagai N)':             {'max': 0.06,  'satuan': 'mg/L'},
-        'Total Fosfat (Sebagai P)':       {'max': 0.2,   'satuan': 'mg/L'},
-        'Kadmium (Cd) Terlarut':          {'max': 0.01,  'satuan': 'mg/L'},
-        'Seng (Zn) Terlarut':             {'max': 0.05,  'satuan': 'mg/L'},
-        'Tembaga (Cu) Terlarut':          {'max': 0.02,  'satuan': 'mg/L'},
-        'Deterjen Total':                 {'max': 0.2,   'satuan': 'mg/L'},
-        'Fecal Coliform':                 {'max': 1000,  'satuan': 'MPN/100mL'},
-        'Total Coliform':                 {'max': 5000,  'satuan': 'MPN/100mL'},
-        'Kekeruhan':                      {'max': '',    'satuan': 'NTU'},
+        'Temperatur':                         {'max': None,  'display_max': 'Dev 3', 'type': 'temperatur'},
+        'Padatan Terlarut Total (TDS)':       {'max': 1000,  'display_max': '1000',  'type': 'normal'},
+        'Padatan Tersuspensi Total (TSS)':    {'max': 50,    'display_max': '50',    'type': 'normal'},
+        'Derajat Keasaman (pH)':              {'max': 7.5,   'display_max': '6-9',   'type': 'ph'},
+        'Kebutuhan Oksigen Biokimiawi (BOD)': {'max': 3,     'display_max': '3',     'type': 'normal'},
+        'Kebutuhan Oksigen Kimiawi (COD)':    {'max': 25,    'display_max': '25',    'type': 'normal'},
+        'Oksigen Terlarut (DO)':              {'max': 4,     'display_max': '4',     'type': 'do'},
+        'Nitrat (sebagai N)':                 {'max': 10,    'display_max': '10',    'type': 'normal'},
+        'Nitrit (sebagai N)':                 {'max': 0.06,  'display_max': '0.06',  'type': 'normal'},
+        'Total Fosfat (Sebagai P)':           {'max': 0.2,   'display_max': '0.2',   'type': 'normal'},
+        'Kadmium (Cd) Terlarut':              {'max': 0.01,  'display_max': '0.01',  'type': 'normal'},
+        'Seng (Zn) Terlarut':                 {'max': 0.05,  'display_max': '0.05',  'type': 'normal'},
+        'Tembaga (Cu) Terlarut':              {'max': 0.02,  'display_max': '0.02',  'type': 'normal'},
+        'Deterjen Total':                     {'max': 0.2,   'display_max': '0.2',   'type': 'normal'},
+        'Fecal Coliform':                     {'max': 1000,  'display_max': '1000',  'type': 'normal'},
+        'Total Coliform':                     {'max': 5000,  'display_max': '5000',  'type': 'normal'},
+        'Kekeruhan':                          {'max': None,  'display_max': '-',     'type': 'skip'},
     }
 
-    import math
-    param_rows = []
-    ci_baru_vals = []  # ← ini yang dipakai untuk max, avg, PI
-
-    for pd in params:
-        bm = BAKU_MUTU_KELAS2.get(pd.parameter_name, {})
-        bm_max = bm.get('max')
+    def parse_nilai(s):
         try:
-            nilai_float = float(str(pd.nilai).replace('<', '').replace('>', '').strip())
+            return float(str(s).replace('<', '').replace('>', '').strip())
         except (ValueError, TypeError):
-            nilai_float = None
+            return None
+
+    # Ambil nilai temperatur udara
+    t_udara_pd = next((p for p in params if p.parameter_name == 'Temperatur Udara'), None)
+    t_udara = parse_nilai(t_udara_pd.nilai) if t_udara_pd else None
+    t_air_pd = next((p for p in params if p.parameter_name == 'Temperatur'), None)
+    t_air = parse_nilai(t_air_pd.nilai) if t_air_pd else None
+
+    param_rows = []
+    ci_baru_vals = []
+
+    # Filter: tidak tampilkan Temperatur Udara di PDF
+    params_for_pdf = [p for p in params if p.parameter_name != 'Temperatur Udara']
+
+    for pd_row in params_for_pdf:
+        bm = BAKU_MUTU_KELAS2.get(pd_row.parameter_name, {})
+        tipe = bm.get('type', 'normal')
+        lij  = bm.get('max')
+        display_max = bm.get('display_max', '-')
+
+        ci = parse_nilai(pd_row.nilai)
 
         ci_ci_max = None
-        ci_baru = None  # (Cᵢ/Lᵢⱼ)baru
+        ci_baru   = None
 
-        if nilai_float is not None and bm_max:
-            ci_ci_max = round(nilai_float / bm_max, 4)
-            # Rumus (Cᵢ/Lᵢⱼ)baru: IF(ci > 1, 1 + 5*LOG10(ci), ci)
-            if ci_ci_max > 1:
-                ci_baru = round(1 + 5 * math.log10(ci_ci_max), 4)
-            else:
-                ci_baru = ci_ci_max
-            ci_baru_vals.append(ci_baru)
+        if tipe == 'skip' or ci is None:
+            pass
+
+        elif tipe == 'temperatur':
+            if t_udara is not None and t_air is not None:
+                ci_calc = abs(t_air - t_udara)
+                ci_ci_max = round(ci_calc / 1.5, 2)
+                if ci_calc < 0 or ci_calc > 3:
+                    if ci_calc > 1.5:
+                        ci_baru = round((ci_calc - 1.5) / (3 - 1.5), 2)
+                    else:
+                        ci_baru = round((ci_calc - 1.5) / (0 - 1.5), 2)
+                else:
+                    ci_baru = 0.0
+                ci_baru_vals.append(ci_baru)
+
+        elif tipe == 'ph':
+            if lij:
+                ci_ci_max = round(ci / lij, 2)
+                if ci < 6 or ci > 9:
+                    if ci > 7.5:
+                        ci_baru = round((ci - 7.5) / (9 - 7.5), 2)
+                    else:
+                        ci_baru = round((ci - 7.5) / (6 - 7.5), 2)
+                else:
+                    ci_baru = 0.0
+                ci_baru_vals.append(ci_baru)
+
+        elif tipe == 'do':
+            if lij and (7 - lij) != 0:
+                ci_ci_max = round(ci / lij, 2)
+                ci_baru = round(((7 - ci) / (7 - lij)) / lij, 2)
+                ci_baru_vals.append(ci_baru)
+
+        else:  # normal
+            if lij:
+                ci_ci_max = round(ci / lij, 2)
+                if ci_ci_max > 1:
+                    ci_baru = round(1 + 5 * math.log10(ci_ci_max), 2)
+                else:
+                    ci_baru = ci_ci_max
+                ci_baru_vals.append(ci_baru)
 
         param_rows.append({
-            'name': pd.parameter_name,
-            'satuan': pd.satuan,
-            'nilai': pd.nilai,
-            'bm_max': bm_max,
+            'name': pd_row.parameter_name,
+            'satuan': pd_row.satuan,
+            'nilai': pd_row.nilai,
+            'bm_max': display_max,
             'ci_ci_max': ci_ci_max,
-            'ci_baru': ci_baru,   # ← ganti log_val jadi ci_baru
+            'ci_baru': ci_baru,
         })
 
-    # Hitung dari kolom (Cᵢ/Lᵢⱼ)baru
     if ci_baru_vals:
-        max_val = max(ci_baru_vals)
-        avg_val = sum(ci_baru_vals) / len(ci_baru_vals)
+        max_val   = max(ci_baru_vals)
+        avg_val   = sum(ci_baru_vals) / len(ci_baru_vals)
         pi_hitung = round(math.sqrt((avg_val**2 + max_val**2) / 2), 3)
     else:
         max_val = avg_val = pi_hitung = None
 
-    # Status berdasarkan pi_hitung (bukan hu.pi yang manual)
     def get_status(pi):
         if pi is None: return '-'
         if pi <= 1:  return 'memenuhi baku mutu'
@@ -797,20 +969,17 @@ def export_ka_pdf(record_id):
         if pi <= 10: return 'cemar sedang'
         return 'cemar berat'
 
-    status_hitung = get_status(pi_hitung)
-
     html_string = render_template('pos/export_ka_pdf.html',
         hu=hu,
         params=param_rows,
-        max_val=round(max_val, 4) if max_val is not None else '-',
-        avg_val=round(avg_val, 4) if avg_val is not None else '-',
+        max_val=round(max_val, 2) if max_val is not None else '-',
+        avg_val=round(avg_val, 2) if avg_val is not None else '-',
         pi_hitung=pi_hitung if pi_hitung is not None else '-',
-        status=status_hitung,  # ← pakai hasil hitung, bukan hu.status_hasil_uji
+        status=get_status(pi_hitung),
         now=datetime.datetime.now(),
     )
 
     pdf_bytes = WeasyprintHTML(string=html_string, base_url=request.host_url).write_pdf()
-
     filename = f"KualitasAir_{hu.lokasi}_{hu.sampling}_Periode{hu.periode}.pdf"
     return current_app.response_class(
         pdf_bytes,

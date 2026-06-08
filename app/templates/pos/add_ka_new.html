@@ -122,8 +122,14 @@
                             {{ ctx.form.lembaga(class_="form-control", placeholder="UPTD Lab LH Jawa Barat")|safe }}
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Indeks Pencemaran (PI) <span class="text-danger">*</span></label>
-                            {{ ctx.form.pi(class_="form-control", step="0.01", placeholder="0.5")|safe }}
+                            <label class="form-label">Indeks Pencemaran (PI)</label>
+                            <div class="form-control bg-light text-muted">
+                                {% if ctx.edit_mode and ctx.record and ctx.record.pi %}
+                                    <strong class="text-dark">{{ ctx.record.pi }}</strong>
+                                {% else %}
+                                    <em>Dihitung otomatis setelah simpan</em>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     <div class="row">

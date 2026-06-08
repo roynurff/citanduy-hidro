@@ -54,7 +54,7 @@ class HasilUjiKAForm(FlaskForm):
     sungai = StringField('sungai')
     kota_kabupaten = StringField('kota_kabupaten')
     ll = StringField('ll')
-    pi = FloatField('pi', validators=[DataRequired()])
+    # pi = FloatField('pi', validators=[DataRequired()])
     kelas_baku_mutu = SelectField('kelas_baku_mutu', choices=[(1, 'Kelas 1'), (2, 'Kelas 2'), (3, 'Kelas 3'), (4, 'Kelas 4')], default='2', validators=[DataRequired()])
     keterangan = StringField('keterangan')
     periode = SelectField('periode', choices=[(1, 'Periode I'), (2, 'Periode II'), (3, 'Periode III')], validators=[DataRequired()])

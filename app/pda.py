@@ -211,7 +211,7 @@ def index():
                 raw = json.loads(rdailies[p.id].raw)[-1]
                 p.latest_sampling = raw.get('sampling')
                 p.latest_tma = None
-                if raw.get('wlevel'):
+                if raw.get('wlevel') is not None:
                     try:
                         wlevel_val = float(raw.get('wlevel'))
                         if p.source == 'SA':
@@ -225,7 +225,7 @@ def index():
                         ld = l_debits[p.id]
                         raw = json.loads(rdailies[p.id].raw)[-1]
                         p.latest_sampling = raw.get('sampling')
-                        if raw.get('wlevel'):
+                        if raw.get('wlevel') is not None:
                             wlevel_val = float(raw.get('wlevel'))
                             if p.source == 'SA':
                                 p.latest_tma = int(wlevel_val)

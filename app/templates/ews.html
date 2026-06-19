@@ -590,6 +590,17 @@
             el.textContent = p.text;
         }
 
+        const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 menit
+
+        function scheduleRefresh() {
+            setTimeout(() => {
+                if (!document.hidden) {
+                    this.updateScreen(); // ganti dengan langsung panggil fungsinya
+                }
+                scheduleRefresh();
+            }, REFRESH_INTERVAL);
+        }
+
         // --- Bagian Baru: Membuat Custom Leaflet Control ---
         var SidebarControl = L.Control.extend({
             options: {
@@ -970,7 +981,11 @@
                     this.updateScreen();
 
                     // Perbarui setiap 500ms (setengah detik) untuk efek berkedip titik dua
-                    setInterval(updateDateTime, 500);
+                    function tickClock() {
+                        updateDateTime();
+                        setTimeout(tickClock, 500);
+                    }
+                    tickClock();
 
                     // --- Fungsi untuk Mengatur Waktu Secara Manual (Opsional) ---
                     // Anda bisa memanggil fungsi ini dari console browser atau dari event lain
@@ -983,6 +998,15 @@
                         clearInterval(updateDateTime); // Ini akan menghentikan pembaruan otomatis
                         console.log(`Waktu diatur secara manual ke: ${this.customDate.toLocaleString('id-ID')}`);
                     }
+
+                    setInterval(() => {
+                        if (!document.hidden) sidebarControl.updateScreen();
+                    }, REFRESH_INTERVAL);
+
+                    // Refresh saat balik ke tab
+                    document.addEventListener('visibilitychange', () => {
+                        if (!document.hidden) sidebarControl.updateScreen();
+                    });
 
                     // Contoh cara memanggil secara manual (bisa dihapus setelah pengujian):
                     // setCustomDateTime(2026, 1, 15, 9, 30); // Contoh: 15 Januari 2026, 09:30
@@ -998,7 +1022,8 @@
         });
 
         // Tambahkan kontrol kustom ke peta
-        new SidebarControl().addTo(map);
+        const sidebarControl = new SidebarControl();
+        sidebarControl.addTo(map);
 
 
         // --- Genangan GeoJSON Layer logic ---

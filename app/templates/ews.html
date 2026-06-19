@@ -127,19 +127,6 @@
         .hour-text {
             font-size: xx-large;
         }
-
-        .status-pill { 
-            display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:600; 
-        }
-        .pill-aman    { 
-            background:rgba(0,150,0,0.15); color:#007700; border:1px solid #007700; 
-        }
-        .pill-waspada { 
-            background:rgba(255,193,7,0.15); color:#856404; border:1px solid #FFC107; 
-        }
-        .pill-siaga   { 
-            background:rgba(204,0,0,0.15); color:#cc0000; border:1px solid #cc0000; 
-        }
     </style>
 </head>
 <body>
@@ -654,7 +641,15 @@
                         });
 
                         // Reset badge
-                        setPill('rain-badge', data.length);
+                        el.textContent = data.length;
+                        if (data.length > 0) {
+                            el.style.display = 'inline';
+                            el.style.backgroundColor = '#cc0000';
+                        } else {
+                            el.style.backgroundColor = '#009900';
+                            el_pch_list.innerHTML = '<p>Kosong</p>';
+                            return;
+                        }
 
                         let ol = document.createElement('ol');
                         ol.style.paddingInlineStart = '20px';
@@ -715,7 +710,11 @@
                             }
                         });
 
-                        setPill('wlevel-badge', data.length);
+                        el.textContent = data.length;
+                        if (data.length > 0) {
+                            el.style.display = 'inline';
+                            el.style.backgroundColor = '#cc0000';
+                        }
 
                         // Helper: hitung level siaga
                         function getSiagaLevel(wlevel, sh, sk, sm) {

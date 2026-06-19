@@ -719,30 +719,19 @@
 
                         data.forEach(item => {
                             const pos = item.pos;
-                            const latest = item.telemetri?.latest;
-                            const trend = item.telemetri?.trend;
-                            if (!pos?.latlon || !latest) return;
+                            const latestWlevel = Array.isArray(item.wlevel)
+                                ? item.wlevel[item.wlevel.length - 1][1]  // ambil yang terbaru
+                                : item.wlevel;
 
                             const [lat, lon] = pos.latlon.split(',').map(Number);
                             if (isNaN(lat) || isNaN(lon)) return;
 
-                            const wlevel = latest.wlevel;
-                            const siaga = getSiagaLevel(wlevel, pos.sh, pos.sk, pos.sm);
+                            // Hitung siaga dari threshold
+                            let siagaLabel = 'Normal', markerColor = '#FF851B';
+                            if (pos.sm && latestWlevel >= pos.sm)      { siagaLabel = 'Siaga Merah'; markerColor = '#cc0000'; }
+                            else if (pos.sk && latestWlevel >= pos.sk) { siagaLabel = 'Siaga Kuning'; markerColor = '#FFC107'; }
+                            else if (pos.sh && latestWlevel >= pos.sh) { siagaLabel = 'Siaga Hijau'; markerColor = '#4CAF50'; }
 
-                            // Trend info
-                            const trendInfo = trend?.t_15_min;
-                            const trendLabel = trendInfo
-                                ? `${trendInfo.trend} ${Math.abs(trendInfo.delta).toFixed(2)} cm (15 menit)`
-                                : '–';
-
-                            // List item
-                            let li = document.createElement('li');
-                            li.innerHTML = `<b>${pos.nama}</b> &mdash; ${wlevel.toFixed(2)} cm
-                                <span style="color:${siaga.color}; font-size:10px;">[${siaga.label}]</span>`;
-                            ol.appendChild(li);
-
-                            // Marker warna sesuai siaga
-                            const markerColor = siaga.color;
                             const marker = L.circleMarker([lat, lon], {
                                 radius: 7,
                                 color: markerColor,
@@ -753,20 +742,18 @@
 
                             marker.bindPopup(`
                                 <div style="padding:6px; min-width:230px;">
-                                    <h4 style="margin:0 0 4px; color:${markerColor};">${siaga.label}</h4>
-                                    <div style="font-weight:bold; font-size:14px; margin-bottom:4px;">${pos.nama}</div>
-                                    <div style="font-size:11px; color:#888;">${pos.sungai} &bull; +${pos.elevasi} mdpl</div>
-                                    <hr style="margin:6px 0; border-color:#eee;">
+                                    <h4 style="margin:0 0 4px; color:${markerColor};">${siagaLabel}</h4>
+                                    <div style="font-weight:bold; font-size:14px;">${pos.nama}</div>
+                                    <div style="font-size:11px; color:#888; margin-bottom:8px;">+${pos.elevasi} mdpl</div>
                                     <div style="font-size:11px; color:#555;">Tinggi Muka Air</div>
-                                    <div style="font-size:2em; font-weight:bold; color:${markerColor};">${wlevel.toFixed(2)} <span style="font-size:12px;">cm</span></div>
+                                    <div style="font-size:2em; font-weight:bold; color:${markerColor};">${latestWlevel.toFixed(2)} <span style="font-size:12px;">cm</span></div>
                                     <div style="font-size:11px; color:#888; margin-top:4px;">
-                                        Siaga Hijau: ${pos.sh ?? '–'} &bull; Kuning: ${pos.sk ?? '–'} &bull; Merah: ${pos.sm ?? '–'}
+                                        SH: ${pos.sh ?? '–'} &bull; SK: ${pos.sk ?? '–'} &bull; SM: ${pos.sm ?? '–'}
                                     </div>
                                     <hr style="margin:6px 0; border-color:#eee;">
-                                    <div style="font-size:11px; color:#555;">Tren 15 menit: <b>${trendLabel}</b></div>
-                                    <div style="font-size:10px; color:#aaa; margin-top:4px;">Sampling: ${latest.sampling}</div>
+                                    <div style="font-size:10px; color:#aaa;">Sampling: ${item.sampling}</div>
                                 </div>
-                            `, { autoPan: true });
+                            `, {autoPan: true});
                         });
 
                         pda_list.innerHTML = '';

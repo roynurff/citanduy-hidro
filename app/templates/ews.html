@@ -732,6 +732,11 @@
                             else if (pos.sk && latestWlevel >= pos.sk) { siagaLabel = 'Siaga Kuning'; markerColor = '#FFC107'; }
                             else if (pos.sh && latestWlevel >= pos.sh) { siagaLabel = 'Siaga Hijau'; markerColor = '#4CAF50'; }
 
+                            let siagaText = siagaLabel !== 'Normal' ? ` [${siagaLabel}]` : '';
+                            let li = document.createElement('li');
+                            li.innerHTML = `<b>${pos.nama}</b>${siagaText} — ${latestWlevel.toFixed(2)} cm`;
+                            ol.appendChild(li);
+
                             const marker = L.circleMarker([lat, lon], {
                                 radius: 7,
                                 color: markerColor,

@@ -548,6 +548,48 @@
             });
         }
 
+        const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        const MOCK_WLEVEL = [
+            {
+                pos: { nama: 'PDA Test Ciamis', latlon: '-7.33,108.35', elevasi: 50, sungai: 'Citanduy', sh: 30, sk: 49, sm: 56 },
+                telemetri: {
+                    latest: { sampling: '2026-06-15T10:00:00', wlevel: 57 },
+                    trend: { t_15_min: { delta: 0.3, trend: 'naik', wlevel: 57 } }
+                }
+            }
+        ];
+
+        // Taruh bareng MOCK_WLEVEL di atas SidebarControl
+        const MOCK_RAIN = [
+            {
+                pos: { id: 1, nama: 'PCH Test Ciamis', latlon: '-7.35,108.40', elevasi: 120 },
+                rain: 28.5,
+                total_seconds: '1 jam',
+                sampling: '2026-06-15T10:00:00'
+            },
+            {
+                pos: { id: 2, nama: 'PCH Test Banjar', latlon: '-7.37,108.55', elevasi: 85 },
+                rain: 42.0,
+                total_seconds: '1 jam',
+                sampling: '2026-06-15T10:00:00'
+            }
+        ];
+
+        // Helper pill — taruh di atas SidebarControl
+        function makePill(count) {
+            if (count === 0) return { cls: 'pill-aman', text: 'Aman' };
+            if (count <= 2)  return { cls: 'pill-waspada', text: `${count} Waspada` };
+            return { cls: 'pill-siaga', text: `${count} Siaga` };
+        }
+        function setPill(elId, count) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            const p = makePill(count);
+            el.className = `status-pill ${p.cls}`;
+            el.textContent = p.text;
+        }
+
         // --- Bagian Baru: Membuat Custom Leaflet Control ---
         var SidebarControl = L.Control.extend({
             options: {
@@ -577,125 +619,160 @@
                 
                 // fetch /api/rain and update the map
                 fetch('/ews?rain=1')
-                    .then(response => response.json())
+                    .then(r => {
+                        if (IS_DEV && !r.ok) return Promise.resolve(MOCK_RAIN);
+                        return r.json();
+                    })
                     .then(data => {
-                        // Clear existing rain markers
-                        // Remove existing rain circle markers (by checking for circleMarker type and a custom property)
+                        // Clear marker lama — pakai custom property _isRainMarker
                         map.eachLayer(layer => {
-                            if (layer instanceof L.CircleMarker && layer.options && layer.options.color === '#0074D9') {
-                                map.removeLayer(layer);
-                            }
+                            if (layer._isRainMarker) map.removeLayer(layer);
                         });
+
+                        // Reset badge
+                        el.textContent = data.length;
                         if (data.length > 0) {
-                            el.textContent = data.length; // Update badge with the number of rain markers
-                            el.style.display = 'inline'; // Show the element if there are markers
+                            el.style.display = 'inline';
                             el.style.backgroundColor = '#cc0000';
                         } else {
                             el.style.backgroundColor = '#009900';
-                            el_pch_list.textContent = 'Kosong';
+                            el_pch_list.innerHTML = '<p>Kosong</p>';
+                            return;
                         }
-    
+
                         let ol = document.createElement('ol');
                         ol.style.paddingInlineStart = '20px';
                         ol.style.marginTop = '0px';
-                        // Add new rain markers to the map
+
                         data.forEach(item => {
                             let li = document.createElement('li');
                             li.textContent = item.pos.nama;
                             ol.appendChild(li);
+
                             const [lat, lon] = item.pos.latlon.split(',').map(Number);
-                            if (isNaN(lat) || isNaN(lon)) {
-                                // Skip this item if lat/lon are not valid numbers
-                                return;
-                            }
+                            if (isNaN(lat) || isNaN(lon)) return;
+
                             const marker = createSensorMarker([lat, lon], item.pos.id).addTo(map);
-                            /*
-                            const marker = L.circleMarker([lat, lon], {
-                                radius: 6,
-                                color: '#0074D9',
-                                fillColor: '#0074D9',
-                                fillOpacity: 0.8,
-                                weight: 2
-                            })
-                            .addTo(map);
-                            */
+                            marker._isRainMarker = true; // tandai biar bisa di-clear
+
                             marker.bindPopup(`
-                            <div style="padding:4px; min-width:220px;">
-                                <h4 style="margin:0 0 8px 0; color:#FF851B;">Siaga Hujan</h4>
-                                <div style="font-weight:bold; margin-bottom:6px;">${item.pos.nama} <span style="margin: 4px 0 0;font-weight:500;color:#888">+${item.pos.elevasi} <span style="font-size: 11px;font-weight:500;letter-spacing:0.1rem;color:#888">MDPL</span></div>
-                                <div style="font-size:11px; letter-spacing: 0.1em;color:#888;">CURAH HUJAN
-                                    <div style="font-size: 3em;color:#444">${item.rain.toFixed(1)} mm selama ${item.total_seconds}</div>
+                                <div style="padding:4px; min-width:220px;">
+                                    <h4 style="margin:0 0 8px 0; color:#FF851B;">Siaga Hujan</h4>
+                                    <div style="font-weight:bold; margin-bottom:6px;">${item.pos.nama}
+                                        <span style="font-weight:500;color:#888"> +${item.pos.elevasi}
+                                            <span style="font-size:11px;">MDPL</span>
+                                        </span>
+                                    </div>
+                                    <div style="font-size:11px; letter-spacing:0.1em; color:#888;">CURAH HUJAN
+                                        <div style="font-size:3em; color:#444;">${item.rain.toFixed(1)} mm selama ${item.total_seconds}</div>
+                                    </div>
+                                    <div style="font-size:0.95em; color:#555;">
+                                        Last Sampling:<br>
+                                        <span style="font-weight:bold;">${item.sampling}</span>
+                                    </div>
                                 </div>
-                                <div style="font-size:0.95em; color:#555;">
-                                    <span>Last Sampling:</span><br>
-                                    <span style="font-weight:bold;">${item.sampling}</span>
-                                </div>
-                            </div>
-                        `, {autoPan: true});
+                            `, {autoPan: true});
                         });
+
                         el_pch_list.innerHTML = '';
                         el_pch_list.appendChild(ol);
                     })
-                    .catch(error => {
-                        console.error('Error fetching rain data:', error);
-                    });
+                    .catch(error => console.error('Error fetching rain data:', error));
             },
             updateWlevel: function() {
-                // Update water level data logic here
                 console.log('Updating water level data...');
                 let el = document.getElementById('wlevel-badge');
-                if (el) {
-                    el.style.backgroundColor = '#009900'; // Set background color to green
-                }
+                if (el) el.style.backgroundColor = '#009900';
                 let pda_list = document.getElementById('pda-overflow-list');
-                
-                // fetch /api/wlevel and update the map
+
                 fetch('/ews?wlevel=1')
-                    .then(response => response.json())
+                    // .then(response => response.json())
+                    .then(r => {
+                        if (IS_DEV && !r.ok) return Promise.resolve(MOCK_WLEVEL); // paksa mock dulu
+                        return r.json();
+                    })
                     .then(data => {
-                        // Clear existing water level markers
-                        // Remove existing water level circle markers (by checking for circleMarker type and a custom property)
+                        // Hapus marker lama
                         map.eachLayer(layer => {
-                            if (layer instanceof L.CircleMarker && layer.options && layer.options.color === '#FF851B') {
+                            if (layer instanceof L.CircleMarker && layer.options?.color === '#FF851B') {
                                 map.removeLayer(layer);
                             }
                         });
+
                         el.textContent = data.length;
                         if (data.length > 0) {
-                            el.style.display = 'inline'; // Show the element if there are markers
+                            el.style.display = 'inline';
                             el.style.backgroundColor = '#cc0000';
                         }
 
-                        // Add new water level markers to the map
+                        // Helper: hitung level siaga
+                        function getSiagaLevel(wlevel, sh, sk, sm) {
+                            if (sm && wlevel >= sm) return { level: 1, label: 'Siaga Merah', color: '#cc0000' };
+                            if (sk && wlevel >= sk) return { level: 2, label: 'Siaga Kuning', color: '#FFC107' };
+                            if (sh && wlevel >= sh) return { level: 3, label: 'Siaga Hijau', color: '#4CAF50' };
+                            return { level: 0, label: 'Normal', color: '#009900' };
+                        }
+
+                        let ol = document.createElement('ol');
+                        ol.style.paddingInlineStart = '20px';
+                        ol.style.marginTop = '0px';
+
                         data.forEach(item => {
-                            const [lat, lon] = item.pos.latlon.split(',').map(Number);
-                            if (isNaN(lat) || isNaN(lon)) {
-                                // Skip this item if lat/lon are not valid numbers
-                                return;
-                            }
+                            const pos = item.pos;
+                            const latest = item.telemetri?.latest;
+                            const trend = item.telemetri?.trend;
+                            if (!pos?.latlon || !latest) return;
+
+                            const [lat, lon] = pos.latlon.split(',').map(Number);
+                            if (isNaN(lat) || isNaN(lon)) return;
+
+                            const wlevel = latest.wlevel;
+                            const siaga = getSiagaLevel(wlevel, pos.sh, pos.sk, pos.sm);
+
+                            // Trend info
+                            const trendInfo = trend?.t_15_min;
+                            const trendLabel = trendInfo
+                                ? `${trendInfo.trend} ${Math.abs(trendInfo.delta).toFixed(2)} cm (15 menit)`
+                                : '–';
+
+                            // List item
+                            let li = document.createElement('li');
+                            li.innerHTML = `<b>${pos.nama}</b> &mdash; ${wlevel.toFixed(2)} cm
+                                <span style="color:${siaga.color}; font-size:10px;">[${siaga.label}]</span>`;
+                            ol.appendChild(li);
+
+                            // Marker warna sesuai siaga
+                            const markerColor = siaga.color;
                             const marker = L.circleMarker([lat, lon], {
-                                radius: 6,
-                                color: '#FF851B',
-                                fillColor: '#FF851B',
-                                fillOpacity: 0.8,
+                                radius: 7,
+                                color: markerColor,
+                                fillColor: markerColor,
+                                fillOpacity: 0.85,
                                 weight: 2
-                            })
-                            .addTo(map);
+                            }).addTo(map);
+
                             marker.bindPopup(`
-                            <div style="padding:4px; min-width:220px;">
-                                <h4 style="margin:0 0 8px 0; color:#FF851B;">Siaga Muka Air</h4>
-                                <div style="font-weight:bold; margin-bottom:6px;">${item.pos.nama}</div>
-                                <div style="font-size:0.95em; color:#555;">
-                                    <span>Last Sampling:</span><br>
-                                    <span style="font-weight:bold;">${item.sampling}</span>
+                                <div style="padding:6px; min-width:230px;">
+                                    <h4 style="margin:0 0 4px; color:${markerColor};">${siaga.label}</h4>
+                                    <div style="font-weight:bold; font-size:14px; margin-bottom:4px;">${pos.nama}</div>
+                                    <div style="font-size:11px; color:#888;">${pos.sungai} &bull; +${pos.elevasi} mdpl</div>
+                                    <hr style="margin:6px 0; border-color:#eee;">
+                                    <div style="font-size:11px; color:#555;">Tinggi Muka Air</div>
+                                    <div style="font-size:2em; font-weight:bold; color:${markerColor};">${wlevel.toFixed(2)} <span style="font-size:12px;">cm</span></div>
+                                    <div style="font-size:11px; color:#888; margin-top:4px;">
+                                        Siaga Hijau: ${pos.sh ?? '–'} &bull; Kuning: ${pos.sk ?? '–'} &bull; Merah: ${pos.sm ?? '–'}
+                                    </div>
+                                    <hr style="margin:6px 0; border-color:#eee;">
+                                    <div style="font-size:11px; color:#555;">Tren 15 menit: <b>${trendLabel}</b></div>
+                                    <div style="font-size:10px; color:#aaa; margin-top:4px;">Sampling: ${latest.sampling}</div>
                                 </div>
-                            </div>
-                        `, {autoPan: true});
+                            `, { autoPan: true });
                         });
+
+                        pda_list.innerHTML = '';
+                        pda_list.appendChild(ol);
                     })
-                    .catch(error => {
-                        console.error('Error fetching water level data:', error);
-                    });
+                    .catch(error => console.error('Error fetching water level data:', error));
             },
             onAdd: function (map) {
                 // Buat elemen div yang akan menjadi container sidebar
@@ -735,10 +812,10 @@
                             <div style="font-size:9pt;color:black;text-shadow: none !important;">Hidrometeorologi</div>
                         </div>
                         <div class="time-container"><span class="date-text">23 Juli<br>2025</span><span class="hour-text">16:04</span></div>
-                    </div>
+                        </div>
                         <div class="box">
                         <h3 class="box-header">
-                            Curah Hujan 
+                            Curah Hujan
                             <span>
                                 <span id="rain-badge" style="margin-right: 10px; background:#090; color:#fff; border-radius:8px; font-size:10px; padding:2px 4px; vertical-align:middle;">0</span>
                                 <span class="toggle-icon">+</span>
@@ -810,7 +887,7 @@
                             <p>Anda juga dapat berlangganan Telegram </p>
                         </div>
                     </div>
-                    `;
+                `;
 
                 // Setelah container dan isinya dibuat, inisialisasi fungsionalitas collapse
                 // Perhatikan bahwa kita harus mencari elemen di dalam 'container' yang baru dibuat

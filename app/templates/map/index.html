@@ -46,7 +46,7 @@
    crossorigin=""></script>
    <script>
       async function loadThiessen(lThiess) {
-        let resp = await fetch('/static/thiessen.geojson');
+        let resp = await fetch('/static/PolygonThiessenUpdateNov2025.json.geojson');
         let thiess = await resp.json();
         lThiess.addData(thiess);
       }

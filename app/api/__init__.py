@@ -9,6 +9,9 @@ from app import get_sampling, csrf, limiter, cache
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 from app.api import pos
+from app.api import ka
+
+ka.register_routes(bp)
 
 
 @bp.route('/token')

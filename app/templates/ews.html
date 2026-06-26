@@ -127,6 +127,31 @@
         .hour-text {
             font-size: xx-large;
         }
+
+        /* Pulse untuk circle & polygon */
+        @keyframes dash-move {
+            to { stroke-dashoffset: -20; }
+        }
+        @keyframes fill-pulse {
+            0%, 100% { fill-opacity: 0.15; }
+            50%       { fill-opacity: 0.4; }
+        }
+
+        .leaflet-interactive.animated-warning {
+            animation: fill-pulse 2s ease-in-out infinite;
+        }
+        .leaflet-interactive.animated-danger {
+            animation: fill-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes marker-pulse {
+            0%   { r: 7;  opacity: 1; }
+            50%  { r: 11; opacity: 0.6; }
+            100% { r: 7;  opacity: 1; }
+        }
+        .pulse-marker circle {
+            animation: marker-pulse 1.5s ease-in-out infinite;
+        }
     </style>
 </head>
 <body>
@@ -552,29 +577,80 @@
 
         const MOCK_WLEVEL = [
             {
-                pos: { nama: 'PDA Test Ciamis', latlon: '-7.33,108.35', elevasi: 50, sungai: 'Citanduy', sh: 30, sk: 49, sm: 56 },
-                telemetri: {
-                    latest: { sampling: '2026-06-15T10:00:00', wlevel: 57 },
-                    trend: { t_15_min: { delta: 0.3, trend: 'naik', wlevel: 57 } }
-                }
-            }
+                pos: { id: 1, nama: 'PDA Stinggil', latlon: '-7.54845,108.88061', elevasi: 50, sh: 400, sk: 450, sm: 507 },
+                sampling: '2026-06-24T10:00:00',
+                status: 'siaga',
+                wlevel: [['2026-06-24T09:00:00', 420.0], ['2026-06-24T09:30:00', 450.0], ['2026-06-24T10:00:00', 510.0]] // > TMA max 507
+            },
+            {
+                pos: { id: 2, nama: 'PDA Pitulasi', latlon: '-7.36182,108.76510', elevasi: 30, sh: 300, sk: 400, sm: 502 },
+                sampling: '2026-06-24T10:00:00',
+                status: 'normal',
+                wlevel: [['2026-06-24T09:00:00', 380.0], ['2026-06-24T09:30:00', 400.0], ['2026-06-24T10:00:00', 420.0]] // > 80% TMA max (401.6)
+            },
+            {
+                pos: { id: 3, nama: 'PDA Cikidang', latlon: '-7.15648,108.19722', elevasi: 40, sh: 400, sk: 500, sm: 617 },
+                sampling: '2026-06-24T10:00:00',
+                status: 'normal',
+                wlevel: [['2026-06-24T09:00:00', 300.0], ['2026-06-24T09:30:00', 400.0], ['2026-06-24T10:00:00', 700.0]] // normal, polygon ga muncul
+            },
+            {
+                pos: { id: 4, nama: 'PDA Sukaharja', latlon: '-7.14208,108.20317', elevasi: 35, sh: 300, sk: 450, sm: 575 },
+                sampling: '2026-06-24T10:00:00', status: 'siaga',
+                wlevel: [['2026-06-24T09:00:00', 400.0], ['2026-06-24T10:00:00', 470.0]] // kuning 81%
+            },
+            {
+                pos: { id: 5, nama: 'PDA Bendung Cilopadang', latlon: '-7.32552,108.75907', elevasi: 25, sh: 200, sk: 300, sm: 405 },
+                sampling: '2026-06-24T10:00:00', status: 'siaga',
+                wlevel: [['2026-06-24T09:00:00', 350.0], ['2026-06-24T10:00:00', 410.0]] // merah >100%
+            },
+            {
+                pos: { id: 6, nama: 'PDA Cukangleuleus', latlon: '-7.35346,108.70424', elevasi: 20, sh: 400, sk: 500, sm: 625 },
+                sampling: '2026-06-24T10:00:00', status: 'normal',
+                wlevel: [['2026-06-24T09:00:00', 480.0], ['2026-06-24T10:00:00', 510.0]] // kuning 81%
+            },
+            {
+                pos: { id: 7, nama: 'PDA Bendung Cijalu', latlon: '-7.29141,108.75899', elevasi: 15, sh: 30, sk: 50, sm: 62 },
+                sampling: '2026-06-24T10:00:00', status: 'normal',
+                wlevel: [['2026-06-24T09:00:00', 40.0], ['2026-06-24T10:00:00', 55.0]] // kuning 88%
+            },
+            {
+                pos: { id: 8, nama: 'PDA Binangun', latlon: '-7.40898,108.52627', elevasi: 18, sh: 150, sk: 200, sm: 281 },
+                sampling: '2026-06-24T10:00:00', status: 'normal',
+                wlevel: [['2026-06-24T09:00:00', 200.0], ['2026-06-24T10:00:00', 240.0]] // kuning 85%
+            },
         ];
 
         // Taruh bareng MOCK_WLEVEL di atas SidebarControl
-        const MOCK_RAIN = [
-            {
-                pos: { id: 1, nama: 'PCH Test Ciamis', latlon: '-7.35,108.40', elevasi: 120 },
-                rain: 28.5,
-                total_seconds: '1 jam',
-                sampling: '2026-06-15T10:00:00'
-            },
-            {
-                pos: { id: 2, nama: 'PCH Test Banjar', latlon: '-7.37,108.55', elevasi: 85 },
-                rain: 42.0,
-                total_seconds: '1 jam',
-                sampling: '2026-06-15T10:00:00'
-            }
-        ];
+        const MOCK_RAIN = { items: [
+            { pos: { nama: 'PCH Wanareja', latlon: '-7.35500,108.71400' },
+            telemetri: { rain24: 45, rain: {
+                '2026-06-24T07:00:00': { rain: 8.0 },
+                '2026-06-24T08:00:00': { rain: 12.0 },
+                '2026-06-24T09:00:00': { rain: 15.0 },
+                '2026-06-24T10:00:00': { rain: 10.0 },
+            }}},
+            { pos: { nama: 'PCH Langensari', latlon: '-7.36707,108.62626' },
+            telemetri: { rain24: 80, rain: {
+                '2026-06-24T07:00:00': { rain: 20.0 },
+                '2026-06-24T08:00:00': { rain: 25.0 },
+                '2026-06-24T09:00:00': { rain: 22.0 },
+                '2026-06-24T10:00:00': { rain: 13.0 },
+            }}},
+            { pos: { nama: 'PCH DayeuhLuhur', latlon: '-7.25899,108.62058' },
+            telemetri: { rain24: 20, rain: {
+                '2026-06-24T08:00:00': { rain: 5.0 },
+                '2026-06-24T09:00:00': { rain: 8.0 },
+                '2026-06-24T10:00:00': { rain: 7.0 },
+            }}},
+            { pos: { nama: 'PK Majenang', latlon: '-7.30363,108.74938' },
+            telemetri: { rain24: 110, rain: {
+                '2026-06-24T06:00:00': { rain: 30.0 },
+                '2026-06-24T07:00:00': { rain: 35.0 },
+                '2026-06-24T08:00:00': { rain: 28.0 },
+                '2026-06-24T09:00:00': { rain: 17.0 },
+            }}},
+        ]};
 
         // Helper pill — taruh di atas SidebarControl
         function makePill(count) {
@@ -599,6 +675,189 @@
                 }
                 scheduleRefresh();
             }, REFRESH_INTERVAL);
+        }
+
+        // Storage polygon genangan yang aktif
+        const genanganLayers = {};
+        let riwayatBanjirData = null;
+        let rainApiData = null;
+        let pdaPchMapping = null;
+
+        // Load geojson riwayat banjir sekali saat startup
+        Promise.all([
+            fetch('/static/js/Riwayat_Banjir_fixed.geojson').then(r => r.json()),
+            fetch('/static/js/pda_pch_mapping.json').then(r => r.json()),
+            // IS_DEV ? Promise.resolve(MOCK_RAIN) :
+            fetch('/api/rain').then(r => r.json())
+        ]).then(([banjir, mapping, rain]) => {
+            riwayatBanjirData = banjir;
+            pdaPchMapping = mapping;
+            rainApiData = rain.items || rain;
+            sidebarControl.updateScreen();
+        }).catch(e => console.error('Gagal load data awal:', e));
+
+        function updateGenanganLayer(pdaNama, latestWlevel, tmaMax) {
+            // console.log('updateGenanganLayer:', pdaNama, latestWlevel, tmaMax);
+            if (!riwayatBanjirData) return;
+
+            const pct = tmaMax ? latestWlevel / tmaMax : 0;
+            const chInfo = getCHInfo(pdaNama);
+            const result = getRadiusDanWarna(pct, chInfo);
+
+            if (genanganLayers[pdaNama]) {
+                map.removeLayer(genanganLayers[pdaNama]);
+                delete genanganLayers[pdaNama];
+            }
+
+            if (!result) return;
+
+            const matching = {
+                type: 'FeatureCollection',
+                features: riwayatBanjirData.features.filter(f => f.properties.PDA === pdaNama)
+            };
+            // console.log('matching features:', pdaNama, matching.features.length);
+            if (!matching.features.length) return;
+
+            const isRed = pct >= 1.0;
+            const layer = L.geoJSON(matching, {
+                style: {
+                    color: result.color,
+                    fillColor: result.color,
+                    weight: 2,
+                    fillOpacity: isRed ? 0.45 : 0.3,
+                    dashArray: isRed ? null : '6,4'
+                },
+                onEachFeature: (feat, lyr) => {
+                    const p = feat.properties;
+                    lyr.bindPopup(`
+                        <div style="padding:6px; min-width:220px;">
+                            <h4 style="margin:0 0 4px; color:${result.color};">${result.label}</h4>
+                            <div style="font-weight:bold;">${p.Lokasi}</div>
+                            <div style="font-size:11px; color:#888; margin:4px 0;">
+                                PDA: ${p.PDA}<br>
+                                TMA: ${latestWlevel.toFixed(1)} cm (${(pct*100).toFixed(0)}% dari max)<br>
+                                CH terdekat: ${chInfo ? chInfo.intensitas.toFixed(1)+'mm/jam, '+chInfo.durasi+' jam' : '–'}<br>
+                                Luas riwayat: ${p['Luas (ha)']} ha
+                            </div>
+                            <div style="font-size:10px; color:#aaa;">Riwayat: ${p.Tanggal}</div>
+                        </div>
+                    `, {autoPan: true});
+                }
+            }).addTo(map);
+            // console.log('layer added:', layer.getBounds()); 
+
+            if (layer._path) layer._path.classList.add(isRed ? 'animated-danger' : 'animated-warning');
+            layer.eachLayer(l => {
+                if (l._path) l._path.classList.add(isRed ? 'animated-danger' : 'animated-warning');
+            });
+
+            genanganLayers[pdaNama] = layer;
+        }
+
+        function updateFallbackWarning(item, latestWlevel) {
+            const pos = item.pos;
+            const [lat, lon] = pos.latlon.split(',').map(Number);
+            if (isNaN(lat) || isNaN(lon)) return;
+
+            const key = `fallback_${pos.nama}`;
+            if (genanganLayers[key]) {
+                map.removeLayer(genanganLayers[key]);
+                delete genanganLayers[key];
+            }
+
+            const hasPolygon = riwayatBanjirData?.features.some(f => f.properties.PDA === pos.nama);
+            if (hasPolygon) return;
+
+            const tmaMax = pos.sm || null;
+            const pct = tmaMax ? latestWlevel / tmaMax : 0;
+            const chInfo = getCHInfo(pos.nama);
+            const result = getRadiusDanWarna(pct, chInfo);
+
+            if (!result) return;
+
+            const circle = L.circle([lat, lon], {
+                radius: result.radius,
+                color: result.color,
+                fillColor: result.color,
+                fillOpacity: 0.2,
+                weight: 2,
+                dashArray: pct < 1.0 ? '6,4' : null
+            }).bindPopup(`
+                <div style="padding:6px; min-width:220px;">
+                    <h4 style="margin:0 0 4px; color:${result.color};">⚠️ ${result.label}</h4>
+                    <div style="font-weight:bold;">${pos.nama}</div>
+                    <div style="font-size:11px; color:#888; margin:4px 0;">
+                        TMA: ${latestWlevel.toFixed(2)} cm (${tmaMax ? (pct*100).toFixed(0)+'%' : '–'})<br>
+                        SH: ${pos.sh??'–'} &bull; SK: ${pos.sk??'–'} &bull; SM: ${pos.sm??'–'}<br>
+                        CH terdekat: ${chInfo ? chInfo.intensitas.toFixed(1)+'mm/jam, '+chInfo.durasi+' jam' : '–'}
+                    </div>
+                    <div style="font-size:10px; color:#aaa; margin-top:4px;">
+                        ⚠️ Estimasi — belum ada data riwayat banjir untuk pos ini
+                    </div>
+                </div>
+            `, {autoPan: true}).addTo(map);
+
+            if (circle._path) circle._path.classList.add(pct >= 1.0 ? 'animated-danger' : 'animated-warning');
+            genanganLayers[key] = circle;
+        }
+
+        function getCHInfo(pdaNama) {
+            if (!rainApiData || !pdaPchMapping) return null;
+            
+            const nearbyPchs = pdaPchMapping[pdaNama] || [];
+            if (!nearbyPchs.length) return null;
+
+            let maxIntensitas = 0;
+            let maxDurasi = 0;
+
+            nearbyPchs.forEach(pchNama => {
+                const pch = rainApiData.find(r => r.pos.nama === pchNama);
+                if (!pch?.telemetri?.rain) return;
+
+                const jamEntries = Object.entries(pch.telemetri.rain)
+                    .sort((a, b) => a[0].localeCompare(b[0])); // urutkan by waktu
+
+                // Intensitas max per jam
+                jamEntries.forEach(([, val]) => {
+                    if (val.rain > maxIntensitas) maxIntensitas = val.rain;
+                });
+
+                // Durasi berturut-turut hujan > 5mm
+                let durasi = 0, maxDurasiPch = 0;
+                jamEntries.forEach(([, val]) => {
+                    if (val.rain > 5) { durasi++; if (durasi > maxDurasiPch) maxDurasiPch = durasi; }
+                    else durasi = 0;
+                });
+                if (maxDurasiPch > maxDurasi) maxDurasi = maxDurasiPch;
+            });
+
+            return { intensitas: maxIntensitas, durasi: maxDurasi };
+        }
+
+        function getRadiusDanWarna(pctTma, chInfo) {
+            const intensitas = chInfo?.intensitas || 0;
+            const durasi     = chInfo?.durasi || 0;
+
+            // TMA >= 100%
+            if (pctTma >= 1.0) {
+                if (intensitas >= 50)  return { radius: 5000, color: '#7f0000', label: 'Bahaya Banjir' };
+                if (intensitas >= 20)  return { radius: 4000, color: '#cc0000', label: 'Potensi Banjir' };
+                return                        { radius: 3500, color: '#cc0000', label: 'Potensi Banjir' };
+            }
+
+            // TMA >= 80%
+            if (pctTma >= 0.8) {
+                if (intensitas >= 50 && durasi >= 1)  return { radius: 3500, color: '#FF5500', label: 'Waspada Banjir' };
+                if (intensitas >= 20 && durasi >= 1)  return { radius: 2500, color: '#FFC107', label: 'Waspada Banjir' };
+                if (intensitas >= 10 && durasi >= 3)  return { radius: 1500, color: '#FFC107', label: 'Waspada Banjir' };
+                return                                { radius: 1000, color: '#4CAF50', label: 'Pantau TMA' };
+            }
+
+            // TMA normal tapi hujan lebat
+            if (intensitas >= 50 && durasi >= 1) return { radius: 1500, color: '#FFC107', label: 'Pantau Hujan Lebat' };
+            if (intensitas >= 20 && durasi >= 2) return { radius: 1000, color: '#4CAF50', label: 'Pantau Hujan' };
+
+            return null; // tidak perlu tampilkan
         }
 
         // --- Bagian Baru: Membuat Custom Leaflet Control ---
@@ -734,6 +993,16 @@
                                 ? item.wlevel[item.wlevel.length - 1][1]  // ambil yang terbaru
                                 : item.wlevel;
 
+                            const tmaMax = parseFloat(item.pos.sm) || null; // pakai SM sebagai TMA max sementara
+                            // Coba cari TMA max dari riwayat banjir
+                            let tmaMaxRiwayat = null;
+                            if (riwayatBanjirData) {
+                                const match = riwayatBanjirData.features.find(f => f.properties.PDA === item.pos.nama);
+                                if (match) tmaMaxRiwayat = parseFloat(match.properties['TMA max']);
+                            }
+                            updateGenanganLayer(item.pos.nama, latestWlevel, tmaMaxRiwayat || tmaMax);
+                            updateFallbackWarning(item, latestWlevel);
+
                             const [lat, lon] = pos.latlon.split(',').map(Number);
                             if (isNaN(lat) || isNaN(lon)) return;
 
@@ -755,6 +1024,9 @@
                                 fillOpacity: 0.85,
                                 weight: 2
                             }).addTo(map);
+                            if (marker._path) {
+                                marker._path.classList.add(markerColor === '#cc0000' ? 'animated-danger' : 'animated-warning');
+                            }
 
                             marker.bindPopup(`
                                 <div style="padding:6px; min-width:230px;">
@@ -967,9 +1239,9 @@
                         this.customDate = new Date(date.getTime() + 500);
                         
                         // Jika menit dalam kelipatan 5, jalankan updateScreen
-                        if (date.getMinutes() % 5 === 0 && date.getSeconds() === 0) {
-                            this.updateScreen();
-                        }
+                        // if (date.getMinutes() % 5 === 0 && date.getSeconds() === 0) {
+                        //     this.updateScreen();
+                        // }
                     }
 
                     // --- Inisialisasi dan Pembaruan Otomatis ---
@@ -978,7 +1250,7 @@
                     updateDateTime();
 
                     // Panggil updateScreen saat halaman dimuat
-                    this.updateScreen();
+                    // this.updateScreen();
 
                     // Perbarui setiap 500ms (setengah detik) untuk efek berkedip titik dua
                     function tickClock() {

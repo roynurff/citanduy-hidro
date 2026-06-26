@@ -34,11 +34,7 @@
         <tr>
             <td>{{ tanggal }} {{ ctx.sampling.strftime('%b')}}</td>
             <td>{{ data.tgl.strftime('%d %b') }}</td>
-            {% if data.ch %}
-            <td class="text-end" x-data="FormHujan({{ctx.pos.id}}, {{ tanggal }}, {{ data.ch }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-                {% else %}
-                <td class="text-end" x-data="FormHujan({{ctx.pos.id}}, {{ tanggal }}, {{ data.ch }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-                {% endif %}
+            <td class="text-end" x-data="FormHujan({{ctx.pos.id}}, {{ tanggal }}, {{ data.ch if data.ch is not none else 'undefined' }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
         </tr>
         {% endfor %}    
     </tbody>
@@ -65,17 +61,16 @@
         <tr>
             <td>{{ tanggal }} {{ ctx.sampling.strftime('%b') }}</td>
             {% if d.get('tma') %}
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '07', {{ d.get('tma').get('07') or undefined }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('07') or '' }}</td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '12', {{ d.get('tma').get('12') or undefined }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('12') or '' }}</td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '17', {{ d.get('tma').get('17') or undefined }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('17') or '' }}</td>
+            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '07', {{ d.get('tma').get('07') if d.get('tma').get('07') is not none else 'undefined' }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('07') or '' }}</td>
+            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '12', {{ d.get('tma').get('12') if d.get('tma').get('12') is not none else 'undefined' }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('12') or '' }}</td>
+            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '17', {{ d.get('tma').get('17') if d.get('tma').get('17') is not none else 'undefined' }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('17') or '' }}</td>
             {% else %}
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '07', )" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '12', )" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '17', )" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-    {% endif %}
-            
+            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '07', undefined)" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
+            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '12', undefined)" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
+            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '17', undefined)" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
+            {% endif %}  
         </tr>
-    {% endfor %}
+        {% endfor %}
     </tbody>
 </table>
 {% endif %}

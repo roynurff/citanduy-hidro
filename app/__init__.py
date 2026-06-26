@@ -425,10 +425,10 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                                 for k, v in r._24jam().items():
                                     wlevel = v.get('wlevel')
                                     if wlevel is not None:
-                                        tma_now += wlevel
+                                        tma_now += float(wlevel)
                                         num_data += 1 
                                     # row.append(round(v.get('wlevel') * 0.01, 2))
-                                    row.append(round(wlevel * 0.01, 2) if wlevel is not None else None) #fix error download pda
+                                    row.append(round(float(wlevel) * 0.01, 2) if wlevel is not None else None) #fix error download pda
                                 rerata = round((tma_now / num_data if num_data > 0 else 0), 2)
                                 row.append(round(rerata, 1))
                                 telemetri.append(row)

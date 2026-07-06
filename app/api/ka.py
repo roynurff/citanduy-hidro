@@ -111,14 +111,19 @@ def register_routes(bp):
     @bp.route('/ka/summary')
     def ka_summary():
         """
-        GET /api/ka/summary?tahun=2026
-        Ringkasan per lokasi per periode — cocok untuk tabel SIH3
+        GET /api/ka/summary?tahun=2026 (Untuk 1 tahun spesifik)
+        GET /api/ka/summary (Untuk tarik SEMUA TAHUN)
         """
-        tahun = request.args.get('tahun', datetime.date.today().year, type=int)
+        # 1. Ambil param tahun, kalau kosong biarin None
+        tahun = request.args.get('tahun', type=int)
 
+        # 2. Query (Urutkan dari yang paling lama ke terbaru)
         query = (HasilUjiKualitasAir.select()
-                 .where(HasilUjiKualitasAir.sampling.year == tahun)
-                 .order_by(HasilUjiKualitasAir.lokasi, HasilUjiKualitasAir.periode))
+                .order_by(HasilUjiKualitasAir.lokasi, HasilUjiKualitasAir.sampling))
+
+        # 3. Jika user minta tahun spesifik, potong pakai .where()
+        if tahun:
+            query = query.where(HasilUjiKualitasAir.sampling.year == tahun)
 
         lokasi_map = {}
         for hu in query:
@@ -130,17 +135,26 @@ def register_routes(bp):
                     'koordinat':      hu.ll,
                     'periode':        {}
                 }
+            
             if hu.periode:
-                lokasi_map[hu.lokasi]['periode'][hu.periode] = {
+                # KUNCI GABUNGAN: Tahun + Periode (Contoh: "2024_1", "2025_2")
+                tahun_sampling = hu.sampling.year
+                key_periode = f"{tahun_sampling}_{hu.periode}"
+                
+                lokasi_map[hu.lokasi]['periode'][key_periode] = {
                     'id':       hu.id,
                     'sampling': hu.sampling.isoformat(),
                     'pi':       hu.pi,
                     'status':   hu.status_hasil_uji,
+                    'foto_url': (
+                        f"https://sihka.bbwscitanduy.id/static/ka/_{tahun_sampling}/_{hu.sampling.strftime('%m')}/{hu.foto_path}"
+                        if hu.foto_path else None
+                    )
                 }
 
         return jsonify({
             'ok':    True,
-            'tahun': tahun,
+            'tahun': tahun if tahun else "Semua Tahun",
             'count': len(lokasi_map),
             'data':  list(lokasi_map.values())
         })

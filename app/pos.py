@@ -398,52 +398,51 @@ def data_ka():
 def detail_ka(lokasi):
     tahun = request.args.get('tahun', datetime.date.today().year, type=int)
 
-    tahun_list = [tahun, tahun - 1, tahun - 2]
-    chart_data_by_year = {}
-    param_data_by_year = {}  # ← baru
-    available_years = []
+    tahun_list = [tahun - 2, tahun - 1, tahun]
 
-    for y in tahun_list:
-        rows = list(HasilUjiKualitasAir.select()
-                    .where(HasilUjiKualitasAir.lokasi == lokasi,
-                           HasilUjiKualitasAir.sampling.year == y)
-                    .order_by(HasilUjiKualitasAir.sampling))
-        if not rows:
-            continue
+    all_rows = list(
+        HasilUjiKualitasAir.select()
+        .where(
+            HasilUjiKualitasAir.lokasi == lokasi,
+            HasilUjiKualitasAir.sampling.year.in_(tahun_list)
+        )
+        .order_by(HasilUjiKualitasAir.sampling)
+    )
 
-        available_years.append(y)
-        labels = [f"Periode {r.periode} ({r.sampling.strftime('%b %Y')})" for r in rows]
+    if not all_rows:
+        flash(f'Tidak ada data untuk lokasi "{lokasi}"')
+        return redirect(f'/pos/ka?tahun={tahun}')
 
-        chart_data_by_year[y] = {
-            'labels': labels,
-            'data': [r.pi for r in rows if r.pi is not None]
-        }
+    chart_labels = []
+    chart_pi     = []
+    param_series = {}
 
-        # Kumpulkan data parameter per tahun
-        param_data_by_year[y] = {'labels': labels}
-        for r in rows:
-            for pd in ParameterDetail.select().where(ParameterDetail.hasil_uji == r):
-                if pd.parameter_name not in param_data_by_year[y]:
-                    param_data_by_year[y][pd.parameter_name] = []
-                try:
-                    val = float(str(pd.nilai).replace('<','').replace('>','').strip())
-                except:
-                    val = None
-                param_data_by_year[y][pd.parameter_name].append(val)
+    for hu in all_rows:
+        periode   = int(hu.periode) if hu.periode else 0
+        tahun_row = int(hu.sampling.year)
+        label     = f"P{periode} {tahun_row}"
+        chart_labels.append(label)
+        chart_pi.append(float(hu.pi) if hu.pi is not None else None)
 
-    # Kumpulkan semua nama parameter yang tersedia
-    parameter_names = sorted(set(
-        k for y_data in param_data_by_year.values()
-        for k in y_data.keys()
-        if k != 'labels'
-    ))
+        for pd_row in ParameterDetail.select().where(ParameterDetail.hasil_uji == hu):
+            nama = str(pd_row.parameter_name)
+            if nama not in param_series:
+                param_series[nama] = [None] * (len(chart_labels) - 1)
+            try:
+                val = float(str(pd_row.nilai).replace('<','').replace('>','').strip())
+            except:
+                val = None
+            param_series[nama].append(val)
 
-    # Data tahun aktif untuk tabel
-    all_data = list(HasilUjiKualitasAir.select()
-                    .where(HasilUjiKualitasAir.lokasi == lokasi,
-                           HasilUjiKualitasAir.sampling.year == tahun)
-                    .order_by(HasilUjiKualitasAir.sampling))
+        for k in param_series:
+            if len(param_series[k]) < len(chart_labels):
+                param_series[k].append(None)
 
+    param_series     = {str(k): [float(v) if v is not None else None for v in vals]
+                        for k, vals in param_series.items()}
+    parameter_names  = sorted(param_series.keys())
+
+    all_data = [r for r in all_rows if r.sampling.year == tahun]
     table_data = [
         {'sampling': hu.sampling, 'pi': hu.pi,
          'status': hu.status_hasil_uji, 'keterangan': hu.keterangan}
@@ -451,14 +450,14 @@ def detail_ka(lokasi):
     ]
 
     ctx = {
-        'lokasi': lokasi,
-        'tahun': tahun,
-        'available_years': available_years,
-        'chart_data_by_year': chart_data_by_year,
-        'param_data_by_year': param_data_by_year,   # ← baru
-        'parameter_names': parameter_names,           # ← baru
-        'table_data': table_data,
-        'all_data': all_data,
+        'lokasi':          lokasi,
+        'tahun':           tahun,
+        'chart_labels':    chart_labels,
+        'chart_pi':        chart_pi,
+        'param_series':    param_series,
+        'parameter_names': parameter_names,
+        'table_data':      table_data,
+        'all_data':        all_data,
     }
     return render_template('pka/detail.html', ctx=ctx)
 

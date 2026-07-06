@@ -140,6 +140,12 @@
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h6 class="card-title mb-0">Grafik Tren Kualitas Air</h6>
             <div class="d-flex gap-2 flex-wrap align-items-center">
+                <!-- Range selector -->
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary range-btn active" onclick="setRange(1)" id="range1">1 Thn</button>
+                    <button class="btn btn-outline-secondary range-btn" onclick="setRange(2)" id="range2">2 Thn</button>
+                    <button class="btn btn-outline-secondary range-btn" onclick="setRange(3)" id="range3">3 Thn</button>
+                </div>
                 <!-- Pilih parameter -->
                 <select id="paramSelector" class="form-select form-select-sm" style="width: auto; min-width: 220px;">
                     <option value="pi">Indeks Pencemaran (PI)</option>
@@ -147,25 +153,13 @@
                     <option value="{{ p }}">{{ p }}</option>
                     {% endfor %}
                 </select>
-                <!-- Tab tahun -->
-                <div class="btn-group btn-group-sm" id="yearTabs">
-                    <button class="btn btn-outline-secondary btn-sm" onclick="switchMode('all')" id="btnAll">
-                        3 Tahun
-                    </button>
-                    {% for y in ctx.available_years %}
-                    <button class="btn btn-outline-primary year-tab {% if y == ctx.tahun %}active{% endif %}"
-                            onclick="switchYear({{ y }})" id="btnYear{{ y }}">
-                        {{ y }}
-                    </button>
-                    {% endfor %}
-                </div>
             </div>
         </div>
     </div>
     <div class="card-body">
         <canvas id="piChart" height="90"></canvas>
         <div id="noDataMsg" class="text-center text-muted py-4 d-none">
-            Tidak ada data untuk parameter dan tahun yang dipilih.
+            Tidak ada data untuk parameter yang dipilih.
         </div>
     </div>
 </div>
@@ -288,106 +282,83 @@
 </div>
 
 <script>
-// Data dari Flask
-const chartDataByYear = {{ ctx.chart_data_by_year | tojson | safe }};
-const paramDataByYear = {{ ctx.param_data_by_year | tojson | safe }};
-const availableYears  = {{ ctx.available_years | tojson | safe }};
-const currentTahun    = {{ ctx.tahun }};
+// Data kronologis dari Flask
+const ALL_LABELS  = {{ ctx.chart_labels | tojson | safe }};
+const ALL_PI      = {{ ctx.chart_pi | tojson | safe }};
+const PARAM_SERIES = {{ ctx.param_series | tojson | safe }};
 
 let currentChart = null;
-let currentYear  = currentTahun;  // null = mode "3 tahun sekaligus"
 let currentParam = 'pi';
-
-// Warna per tahun untuk mode multi-tahun
-const YEAR_COLORS = {
-    0: { border: '#0d6efd', bg: 'rgba(13,110,253,0.08)' },
-    1: { border: '#fd7e14', bg: 'rgba(253,126,20,0.08)' },
-    2: { border: '#198754', bg: 'rgba(25,135,84,0.08)'  },
-};
+let currentRange = 1; // tahun
 
 function getParamLabel(param) {
     if (param === 'pi') return 'Indeks Pencemaran (PI)';
     return param;
 }
 
-function buildDatasets(year, param) {
-    // Mode satu tahun
-    if (year !== null) {
-        const src = param === 'pi' ? chartDataByYear : paramDataByYear;
-        const yearData = (src[year] || {})[param === 'pi' ? 'data' : param] || [];
-        const labels   = (src[year] || {}).labels || 
-                         (chartDataByYear[year] || {}).labels || [];
-        return {
-            labels,
-            datasets: [{
-                label: `${getParamLabel(param)} ${year}`,
-                data: yearData,
-                borderColor: '#0d6efd',
-                backgroundColor: 'rgba(13,110,253,0.08)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4,
-                pointRadius: 7,
-                pointBackgroundColor: '#0d6efd',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                pointHoverRadius: 9,
-            }]
-        };
-    }
-
-    // Mode 3 tahun sekaligus — gunakan label periode saja (P1, P2, P3)
-    const baseLabels = ['Periode 1', 'Periode 2', 'Periode 3'];
-    const datasets = availableYears.map((y, i) => {
-        const src = param === 'pi' ? chartDataByYear : paramDataByYear;
-        const d   = (src[y] || {})[param === 'pi' ? 'data' : param] || [];
-        const col = YEAR_COLORS[i % 3];
-        return {
-            label: `${getParamLabel(param)} ${y}`,
-            data: d,
-            borderColor: col.border,
-            backgroundColor: col.bg,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4,
-            pointRadius: 6,
-            pointBackgroundColor: col.border,
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointHoverRadius: 8,
-        };
-    });
-
-    return { labels: baseLabels, datasets };
+function getSlicedData(range) {
+    // Hitung berapa titik yang masuk dalam range tahun
+    // Asumsi max 3 periode per tahun
+    const maxPoints = range * 3;
+    const start = Math.max(0, ALL_LABELS.length - maxPoints);
+    
+    const labels = ALL_LABELS.slice(start);
+    const data   = currentParam === 'pi'
+        ? ALL_PI.slice(start)
+        : (PARAM_SERIES[currentParam] || []).slice(start);
+    
+    return { labels, data };
 }
 
 function renderChart() {
-    const { labels, datasets } = buildDatasets(currentYear, currentParam);
-    const hasData = datasets.some(d => d.data && d.data.length > 0);
+    const { labels, data } = getSlicedData(currentRange);
+    const hasData = data.some(v => v !== null && v !== undefined);
 
     document.getElementById('noDataMsg').classList.toggle('d-none', hasData);
 
     const ctx_el = document.getElementById('piChart').getContext('2d');
     if (currentChart) currentChart.destroy();
-
     if (!hasData) return;
 
     const isPI = currentParam === 'pi';
 
     currentChart = new Chart(ctx_el, {
         type: 'line',
-        data: { labels, datasets },
+        data: {
+            labels,
+            datasets: [{
+                label: getParamLabel(currentParam),
+                data,
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13,110,253,0.08)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 6,
+                pointBackgroundColor: data.map(v => {
+                    if (!isPI || v === null) return '#0d6efd';
+                    if (v <= 1)  return '#198754';
+                    if (v <= 5)  return '#ffc107';
+                    if (v <= 10) return '#fd7e14';
+                    return '#dc3545';
+                }),
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointHoverRadius: 9,
+                spanGaps: true,  // hubungkan titik yang ada null di tengah
+            }]
+        },
         options: {
             responsive: true,
             maintainAspectRatio: true,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: { display: currentYear === null },  // tampilkan legend di mode multi-tahun
+                legend: { display: false },
                 tooltip: {
                     backgroundColor: 'rgba(0,0,0,0.85)',
                     padding: 12,
                     callbacks: {
-                        afterBody: isPI ? (items) => {
+                        afterBody: isPI ? items => {
                             const v = items[0]?.raw;
                             if (v == null) return '';
                             if (v <= 1)  return '→ Memenuhi Baku Mutu';
@@ -400,10 +371,9 @@ function renderChart() {
             },
             scales: {
                 y: {
-                    beginAtZero: true,
+                    beginAtZero: !isPI,
                     title: { display: true, text: getParamLabel(currentParam) },
                     afterDraw: isPI ? chart => {
-                        // Garis batas status PI
                         const ctx2  = chart.ctx;
                         const yAxis = chart.scales.y;
                         const xAxis = chart.scales.x;
@@ -432,22 +402,12 @@ function renderChart() {
     });
 }
 
-function switchYear(year) {
-    currentYear = year;
-    document.querySelectorAll('.year-tab').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.textContent.trim()) === year);
+function setRange(range) {
+    currentRange = range;
+    document.querySelectorAll('.range-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.id === `range${range}`);
     });
-    document.getElementById('btnAll').classList.remove('active');
     renderChart();
-}
-
-function switchMode(mode) {
-    if (mode === 'all') {
-        currentYear = null;
-        document.querySelectorAll('.year-tab').forEach(btn => btn.classList.remove('active'));
-        document.getElementById('btnAll').classList.add('active');
-        renderChart();
-    }
 }
 
 document.getElementById('paramSelector').addEventListener('change', function() {

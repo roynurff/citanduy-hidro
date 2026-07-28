@@ -724,8 +724,14 @@ def lengkung_debit():
         max_versi = max(s.versi for s in segs)
         grouped[pos_id] = [s for s in segs if s.versi == max_versi]
 
+    sungai_set = sorted(set(p.sungai for p in poses if p.id in grouped))
+    grouped_by_sungai = {}
+    for s in sungai_set:
+        grouped_by_sungai[s] = [{'pos': p, 'segmen': grouped[p.id]} for p in poses if p.sungai == s and p.id in grouped]
+
     ctx = {
         'poses': [{'pos': p, 'segmen': grouped[p.id]} for p in poses if p.id in grouped],
+        'grouped': grouped_by_sungai,
     }
     return render_template('pos/lengkung_debit.html', ctx=ctx, is_admin=is_admin_pos())
 

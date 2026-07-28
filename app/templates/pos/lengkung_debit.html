@@ -1,61 +1,75 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2 class="border-start border-5 border-danger ps-2 fw-lighter">Lengkung Debit (<b>{{ ctx.poses|length }}</b>)</h2>
-<div class="row">
-    <div class="col-sm-10">
-        Rumus Debit: <span class="fw-bold font-monospace">Q = C * (TMA + A)^B</span>
+<p class="text-muted">Rumus Debit: <span class="fw-bold font-monospace">Q = C × (H + A)<sup>B</sup></span></p>
 
-        {% for item in ctx.poses %}
-        {% set p = item.pos %}
-        {% set segs = item.segmen %}
-        <div class="pos-block card mb-2">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center flex-wrap">
+{% for sungai, items in ctx.grouped.items() %}
+<h6 class="text-uppercase text-muted mt-4 mb-2 border-bottom pb-1">
+    <i class="bi bi-water"></i> {{ sungai }}
+</h6>
+<div class="row g-3">
+    {% for item in items %}
+    {% set p = item.pos %}
+    {% set segs = item.segmen %}
+    <div class="col-md-6 col-lg-4">
+        <div class="pos-block card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <a href="/pda/{{ p.id }}" class="fw-bold">{{ p.nama }}</a>
-                        <span class="text-muted">#{{ p.id }}</span>
-                        <span class="badge bg-secondary ms-1">edisi {{ segs[0].versi }}</span>
-                        {% if is_admin %}
-                        <a href="{{ url_for('pos.lengkung_debit_edit', pos_id=p.id) }}" class="ms-1" title="Edit rumus">
-                            <i class="bi bi-pencil-square"></i>
-                        </a>
-                        {% endif %}
+                        <a href="/pda/{{ p.id }}" class="fw-bold text-decoration-none">{{ p.nama }}</a>
+                        <div class="small text-muted">#{{ p.id }} &middot; edisi {{ segs[0].versi }}</div>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <label class="mb-0 small">TMA (m):</label>
-                        <input type="text" class="form-control form-control-sm tma-input" style="width:80px"
-                               oninput="getDebit(this)">
-                        <span class="small">Debit:</span>
-                        <b class="q_">-</b> <span class="small">M³/detik</span>
-                    </div>
+                    {% if is_admin %}
+                    <a href="{{ url_for('pos.lengkung_debit_edit', pos_id=p.id) }}" class="text-muted" title="Edit rumus">
+                        <i class="bi bi-pencil-square"></i>
+                    </a>
+                    {% endif %}
                 </div>
 
-                <table class="table table-sm table-borderless mb-0 mt-1 small">
-                    <thead>
-                        <tr class="text-muted">
-                            <th>Rentang H (m)</th><th>C</th><th>A</th><th>B</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for s in segs %}
-                        <tr class="formula-row"
-                            data-hmin="{{ s.h_min if s.h_min is not none else '' }}"
-                            data-hmax="{{ s.h_max if s.h_max is not none else '' }}"
-                            data-c="{{ s.c_ }}" data-a="{{ s.a_ }}" data-b="{{ s.b_ }}">
-                            <td>{{ s.h_min if s.h_min is not none else '-∞' }} &lt; H &lt; {{ s.h_max if s.h_max is not none else '∞' }}</td>
-                            <td>{{ s.c_ }}</td>
-                            <td>{{ s.a_ }}</td>
-                            <td>{{ s.b_ }}</td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
+                <div class="input-group input-group-sm mt-3">
+                    <span class="input-group-text">TMA</span>
+                    <input type="text" inputmode="decimal" class="form-control tma-input" oninput="getDebit(this)" placeholder="meter">
+                    <span class="input-group-text bg-danger-subtle fw-bold q_">-</span>
+                    <span class="input-group-text">M³/s</span>
+                </div>
+
+                {% if segs|length > 1 %}
+                <div class="mt-2">
+                    <a class="small text-decoration-none" data-bs-toggle="collapse" href="#segs-{{ p.id }}">
+                        <i class="bi bi-chevron-down"></i> {{ segs|length }} segmen rumus
+                    </a>
+                    <div class="collapse mt-1" id="segs-{{ p.id }}">
+                        <table class="table table-sm small mb-0">
+                            <thead class="text-muted"><tr><th>Rentang H</th><th>C</th><th>A</th><th>B</th></tr></thead>
+                            <tbody>
+                            {% for s in segs %}
+                                <tr class="formula-row"
+                                    data-hmin="{{ s.h_min if s.h_min is not none else '' }}"
+                                    data-hmax="{{ s.h_max if s.h_max is not none else '' }}"
+                                    data-c="{{ s.c_ }}" data-a="{{ s.a_ }}" data-b="{{ s.b_ }}">
+                                    <td>{{ s.h_min if s.h_min is not none else '-∞' }}&lt;H&lt;{{ s.h_max if s.h_max is not none else '∞' }}</td>
+                                    <td>{{ s.c_ }}</td><td>{{ s.a_ }}</td><td>{{ s.b_ }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% else %}
+                <div class="formula-row d-none"
+                     data-hmin="{{ segs[0].h_min if segs[0].h_min is not none else '' }}"
+                     data-hmax="{{ segs[0].h_max if segs[0].h_max is not none else '' }}"
+                     data-c="{{ segs[0].c_ }}" data-a="{{ segs[0].a_ }}" data-b="{{ segs[0].b_ }}"></div>
+                <div class="small text-muted mt-2 font-monospace">
+                    C={{ segs[0].c_ }}, A={{ segs[0].a_ }}, B={{ segs[0].b_ }}
+                </div>
+                {% endif %}
             </div>
         </div>
-        {% endfor %}
     </div>
-    <div class="col-sm-2"></div>
+    {% endfor %}
 </div>
+{% endfor %}
 {% endblock %}
 
 {% block js_foot %}
@@ -72,13 +86,10 @@ function getDebit(input) {
     });
     rows.forEach(r => r.classList.remove('table-warning'));
     if (!match && rows.length) match = rows[0];
-    if (!match) return;
-    match.classList.add('table-warning');
-    const c = parseFloat(match.dataset.c);
-    const a = parseFloat(match.dataset.a);
-    const b = parseFloat(match.dataset.b);
-    const q = c * Math.pow(tma + a, b);
     const elq = block.querySelector('.q_');
+    if (!match || isNaN(tma)) { elq.innerText = '-'; return; }
+    match.classList.add('table-warning');
+    const q = parseFloat(match.dataset.c) * Math.pow(tma + parseFloat(match.dataset.a), parseFloat(match.dataset.b));
     elq.innerText = isNaN(q) ? '-' : q.toFixed(2);
 }
 </script>

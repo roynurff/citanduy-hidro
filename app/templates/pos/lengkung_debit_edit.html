@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="border-start border-5 border-danger ps-2 fw-lighter">Edit Rumus Debit — {{ pos.nama }}</h2>
+<a href="{{ url_for('pos.lengkung_debit') }}" class="small"><i class="bi bi-arrow-left"></i> Kembali</a>
+
+<div class="row mt-3">
+    <div class="col-sm-8">
+        <div x-data="lengkungForm()" x-init="init()">
+            <div class="alert alert-info small">
+                Menyimpan akan membuat <b>edisi baru</b> (versi {{ "%Y-%m-%d"|format }} hari ini).
+                Rumus lama tetap tersimpan sebagai histori, tidak akan hilang.
+            </div>
+
+            <template x-for="(s, i) in segmen" :key="i">
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col"><input type="number" step="any" x-model.number="s.h_min" placeholder="H min (kosongkan = -∞)" class="form-control form-control-sm"></div>
+                    <div class="col"><input type="number" step="any" x-model.number="s.h_max" placeholder="H max (kosongkan = ∞)" class="form-control form-control-sm"></div>
+                    <div class="col"><input type="number" step="any" x-model.number="s.c_" placeholder="C" class="form-control form-control-sm" required></div>
+                    <div class="col"><input type="number" step="any" x-model.number="s.a_" placeholder="A" class="form-control form-control-sm" required></div>
+                    <div class="col"><input type="number" step="any" x-model.number="s.b_" placeholder="B" class="form-control form-control-sm" required></div>
+                    <div class="col-auto">
+                        <button type="button" @click="segmen.splice(i, 1)" class="btn btn-sm btn-outline-danger" title="Hapus segmen">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+            <button type="button" @click="segmen.push({h_min: null, h_max: null, c_: null, a_: null, b_: null})"
+                    class="btn btn-sm btn-outline-primary mt-1">
+                <i class="bi bi-plus-lg"></i> Tambah Segmen
+            </button>
+
+            <div class="mt-3">
+                <button type="button" @click="save()" class="btn btn-success" :disabled="saving">
+                    <span x-show="saving" class="spinner-border spinner-border-sm me-1"></span>
+                    Simpan (Edisi Baru)
+                </button>
+                <span x-show="errorMsg" class="text-danger small ms-2" x-text="errorMsg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <h6>Histori Edisi</h6>
+        {% if histori %}
+            {% for versi, segs in histori.items() %}
+            <div class="card mb-2">
+                <div class="card-body py-2">
+                    <div class="small fw-bold">{{ versi }}</div>
+                    <table class="table table-sm mb-0 small">
+                        <tbody>
+                        {% for s in segs %}
+                        <tr>
+                            <td>{{ s.h_min if s.h_min is not none else '-∞' }}&lt;H&lt;{{ s.h_max if s.h_max is not none else '∞' }}</td>
+                            <td>C={{ s.c_ }}</td><td>A={{ s.a_ }}</td><td>B={{ s.b_ }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted small">Belum ada histori edisi sebelumnya.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function lengkungForm() {
+    return {
+        segmen: [],
+        saving: false,
+        errorMsg: '',
+        init() {
+            const aktif = {{ aktif|tojson }};
+            this.segmen = aktif.length ? aktif.map(s => ({
+                h_min: s.h_min, h_max: s.h_max, c_: s.c_, a_: s.a_, b_: s.b_
+            })) : [{h_min: null, h_max: null, c_: null, a_: null, b_: null}];
+        },
+        save() {
+            this.errorMsg = '';
+            for (const s of this.segmen) {
+                if (s.c_ === null || s.a_ === null || s.b_ === null) {
+                    this.errorMsg = 'Kolom C, A, B wajib diisi di semua segmen.';
+                    return;
+                }
+            }
+            this.saving = true;
+            fetch(window.location.pathname, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({segmen: this.segmen})
+            })
+            .then(r => r.json())
+            .then(res => {
+                this.saving = false;
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    this.errorMsg = res.error || 'Gagal menyimpan.';
+                }
+            })
+            .catch(() => {
+                this.saving = false;
+                this.errorMsg = 'Terjadi kesalahan koneksi.';
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

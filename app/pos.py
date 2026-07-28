@@ -702,6 +702,10 @@ def upsert_manual(id):
     else:
         return redirect('/')
 
+def is_admin_pos():
+    return current_user.__data__.get('pos_id') is None
+
+
 @bp.route('/debit')
 @login_required
 def lengkung_debit():
@@ -710,10 +714,64 @@ def lengkung_debit():
     Q = Debit
     H = TMA
     '''
+    poses = Pos.select().where(Pos.tipe == '2').order_by(Pos.sungai, Pos.nama)
+    l_debits_raw = LengkungDebit.select().order_by(
+        LengkungDebit.pos, LengkungDebit.versi.desc(), LengkungDebit.h_min)
+    grouped = {}
+    for l in l_debits_raw:
+        grouped.setdefault(l.pos_id, []).append(l)
+    for pos_id, segs in grouped.items():
+        max_versi = max(s.versi for s in segs)
+        grouped[pos_id] = [s for s in segs if s.versi == max_versi]
+
     ctx = {
-        'poses': LengkungDebit.select()
+        'poses': [{'pos': p, 'segmen': grouped[p.id]} for p in poses if p.id in grouped],
     }
-    return render_template('pos/lengkung_debit.html', ctx=ctx)
+    return render_template('pos/lengkung_debit.html', ctx=ctx, is_admin=is_admin_pos())
+
+
+@bp.route('/debit/<int:pos_id>', methods=['GET', 'POST'])
+@login_required
+def lengkung_debit_edit(pos_id):
+    if not is_admin_pos():
+        abort(403)
+    try:
+        pos = Pos.get_by_id(pos_id)
+    except DoesNotExist:
+        abort(404)
+
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        segmen = data.get('segmen', [])
+        if not segmen:
+            return jsonify(ok=False, error='Minimal 1 segmen rumus'), 400
+        for s in segmen:
+            for f in ('c_', 'a_', 'b_'):
+                if s.get(f) in (None, ''):
+                    return jsonify(ok=False, error=f'Kolom {f} wajib diisi'), 400
+        versi_baru = datetime.date.today()
+        with LengkungDebit._meta.database.atomic():
+            for s in segmen:
+                LengkungDebit.create(
+                    pos=pos,
+                    versi=versi_baru,
+                    h_min=s.get('h_min') or None,
+                    h_max=s.get('h_max') or None,
+                    c_=float(s['c_']),
+                    a_=float(s['a_']),
+                    b_=float(s['b_']),
+                )
+        return jsonify(ok=True)
+
+    all_segmen = (LengkungDebit.select()
+                  .where(LengkungDebit.pos == pos)
+                  .order_by(LengkungDebit.versi.desc(), LengkungDebit.h_min))
+    versi_list = sorted(set(s.versi for s in all_segmen), reverse=True)
+    aktif = [s for s in all_segmen if s.versi == versi_list[0]] if versi_list else []
+    histori = {v: [s for s in all_segmen if s.versi == v] for v in versi_list[1:]}
+
+    return render_template('pos/lengkung_debit_edit.html',
+                           pos=pos, aktif=aktif, histori=histori)
 
 @bp.route('/')
 @login_required

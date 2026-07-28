@@ -194,7 +194,14 @@ def index():
     mds = dict([(m.pos.id, m.tma) for m in ManualDaily.select().where(
         ManualDaily.sampling==sampling.strftime('%Y-%m-%d'), 
         ManualDaily.tma.is_null(False))])
-    l_debits = dict([(l.pos.id, l) for l in LengkungDebit.select()])
+    l_debits_raw = LengkungDebit.select()
+    l_debits = {}
+    for l in l_debits_raw:
+        l_debits.setdefault(l.pos_id, []).append(l)
+    for pos_id, segs in l_debits.items():
+        max_versi = max(s.versi for s in segs)
+        l_debits[pos_id] = [s for s in segs if s.versi == max_versi]
+
     for p in pdas:
         if p.id in mds:
             tma = json.loads(mds.get(p.id))
@@ -222,7 +229,6 @@ def index():
                         p.latest_tma = None
                 if p.id in l_debits:
                     try:
-                        ld = l_debits[p.id]
                         raw = json.loads(rdailies[p.id].raw)[-1]
                         p.latest_sampling = raw.get('sampling')
                         if raw.get('wlevel') is not None:
@@ -231,11 +237,15 @@ def index():
                                 p.latest_tma = int(wlevel_val)
                             else:
                                 p.latest_tma = int(wlevel_val * 100)
-                            p.debit = ld.c_ * ((p.latest_tma * 0.01) + ld.a_) ** ld.b_
+                            h = p.latest_tma * 0.01
+                            segs = l_debits[p.id]
+                            ld = next((s for s in segs
+                                       if (s.h_min is None or h >= s.h_min)
+                                       and (s.h_max is None or h <= s.h_max)), segs[0])
+                            p.debit = ld.c_ * (h + ld.a_) ** ld.b_
                     except (ValueError, TypeError, ZeroDivisionError):
                         p.debit = None
             except Exception as e:
-                # Skip this pos if any error occurs
                 print(f'Error processing PDA {p.id}: {str(e)}')
     sungai = set([p.sungai for p in pdas])
     ruas = {}

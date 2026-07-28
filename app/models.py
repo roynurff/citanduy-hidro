@@ -753,6 +753,8 @@ class ManualKlim(BaseModel): #new class for manual klimatologi
 class LengkungDebit(BaseModel):
     pos = pw.ForeignKeyField(Pos)
     versi = pw.DateField()
+    h_min = pw.FloatField(null=True)
+    h_max = pw.FloatField(null=True)
     c_ = pw.FloatField()
     a_ = pw.FloatField()
     b_ = pw.FloatField()

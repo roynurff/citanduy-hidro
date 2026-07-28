@@ -773,8 +773,16 @@ def lengkung_debit_edit(pos_id):
                   .where(LengkungDebit.pos == pos)
                   .order_by(LengkungDebit.versi.desc(), LengkungDebit.h_min))
     versi_list = sorted(set(s.versi for s in all_segmen), reverse=True)
-    aktif = [s for s in all_segmen if s.versi == versi_list[0]] if versi_list else []
+    aktif_objs = [s for s in all_segmen if s.versi == versi_list[0]] if versi_list else []
     histori = {v: [s for s in all_segmen if s.versi == v] for v in versi_list[1:]}
+
+    aktif = [{
+        'h_min': s.h_min,
+        'h_max': s.h_max,
+        'c_': s.c_,
+        'a_': s.a_,
+        'b_': s.b_,
+    } for s in aktif_objs]
 
     return render_template('pos/lengkung_debit_edit.html',
                            pos=pos, aktif=aktif, histori=histori)

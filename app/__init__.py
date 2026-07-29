@@ -61,7 +61,7 @@ def get_warning_wlevel(now: Optional[datetime.datetime] = None) -> list:
         if r.source == 'SC':
             wlevels = [(r['sampling'], float(r['wlevel'] * 100)) for r in raw]
         else:
-            wlevels = [(r['sampling'], float(r['wlevel'])) for r in raw]
+            wlevels = [(r['sampling'], float(r['wlevel'])) for r in raw if 'wlevel' in r and r['wlevel'] is not None]
         status = 'normal'
         if wlevels[-1][1] >= pos.sm:
             status = 'siaga merah'

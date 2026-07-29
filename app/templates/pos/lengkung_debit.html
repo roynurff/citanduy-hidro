@@ -1,56 +1,43 @@
 {% extends 'base.html' %}
-{% block head %}
+{% block extra_head %}
 <style>
-:root {
-    --ld-border: #e2e2e4;
-    --ld-muted: #71717a;
-    --ld-bg-soft: #fafafa;
-    --ld-radius: 0.75rem;
-}
-.ld-card {
-    border: 1px solid var(--ld-border);
-    border-radius: var(--ld-radius);
-    background: #fff;
-    transition: box-shadow .15s ease, border-color .15s ease;
-}
-.ld-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.06); border-color: #d4d4d8; }
-.ld-badge {
-    font-size: .68rem;
-    font-weight: 500;
-    padding: .2rem .55rem;
-    border-radius: 999px;
-    background: var(--ld-bg-soft);
-    color: var(--ld-muted);
-    border: 1px solid var(--ld-border);
-}
-.ld-label { font-size: .72rem; color: var(--ld-muted); text-transform: uppercase; letter-spacing: .03em; }
-.ld-input {
-    border-radius: .5rem !important;
-    border: 1px solid var(--ld-border) !important;
-}
-.ld-input:focus { border-color: #a1a1aa !important; box-shadow: 0 0 0 3px rgba(0,0,0,.05) !important; }
-.ld-result {
-    border-radius: .5rem;
-    background: var(--ld-bg-soft);
-    border: 1px solid var(--ld-border);
+.ld-table-wrap { border: 1px solid #e2e2e4; border-radius: .75rem; overflow: hidden; background: #fff; }
+.ld-river-header {
+    background: #fafafa;
+    padding: .5rem 1rem;
+    font-size: .78rem;
     font-weight: 600;
-    min-width: 64px;
-    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #52525b;
+    border-bottom: 1px solid #e2e2e4;
+    display: flex; align-items: center; gap: .4rem;
+}
+.ld-table { margin-bottom: 0; }
+.ld-table th {
+    font-size: .72rem;
+    text-transform: uppercase;
+    color: #71717a;
+    font-weight: 600;
+    border-bottom: 1px solid #e2e2e4 !important;
+    background: #fff;
+}
+.ld-table td { vertical-align: middle; font-size: .875rem; }
+.ld-table tr:last-child td { border-bottom: none; }
+.ld-input-sm {
+    width: 90px; border-radius: .4rem !important; border: 1px solid #e2e2e4 !important;
+}
+.ld-input-sm:focus { border-color: #a1a1aa !important; box-shadow: 0 0 0 3px rgba(0,0,0,.05) !important; }
+.ld-result-sm {
+    display: inline-block; min-width: 60px; text-align: center;
+    border-radius: .4rem; background: #fafafa; border: 1px solid #e2e2e4;
+    font-weight: 600; padding: .25rem .5rem;
     transition: background .2s ease, color .2s ease;
 }
-.ld-result.is-active { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
-.ld-river-heading {
-    font-size: .8rem;
-    font-weight: 600;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--ld-muted);
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-}
+.ld-result-sm.is-active { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+.ld-formula-cell { font-family: monospace; font-size: .78rem; color: #52525b; }
 .ld-segrow.is-match { background: #fef3c7 !important; }
-.ld-edit-link { color: var(--ld-muted); transition: color .15s ease; }
+.ld-edit-link { color: #a1a1aa; }
 .ld-edit-link:hover { color: #18181b; }
 </style>
 {% endblock %}
@@ -60,74 +47,71 @@
 <p class="text-muted small mb-4">Rumus Debit: <span class="fw-semibold font-monospace">Q = C × (H + A)<sup>B</sup></span></p>
 
 {% for sungai, items in ctx.grouped.items() %}
-<div class="ld-river-heading mt-4 mb-2">
-    <i class="bi bi-water"></i> {{ sungai }}
-</div>
-<div class="row g-3">
-    {% for item in items %}
-    {% set p = item.pos %}
-    {% set segs = item.segmen %}
-    <div class="col-md-6 col-lg-4">
-        <div class="pos-block ld-card p-3 h-100">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                    <a href="/pda/{{ p.id }}" class="fw-semibold text-decoration-none text-dark">{{ p.nama }}</a>
-                    <div class="ld-label mt-1">#{{ p.id }} &middot; edisi {{ segs[0].versi }}</div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="ld-badge">{{ segs|length }} rumus</span>
+<div class="ld-table-wrap mb-4">
+    <div class="ld-river-header"><i class="bi bi-water"></i> {{ sungai }}</div>
+    <div class="table-responsive">
+        <table class="table ld-table mb-0">
+            <thead>
+                <tr>
+                    <th style="width:22%">Pos</th>
+                    <th style="width:8%">Edisi</th>
+                    <th style="width:32%">Rumus Aktif</th>
+                    <th style="width:14%">TMA (m)</th>
+                    <th style="width:14%">Debit (M³/s)</th>
+                    <th style="width:5%"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+            {% set p = item.pos %}
+            {% set segs = item.segmen %}
+            <tr class="pos-block">
+                <td>
+                    <a href="/pda/{{ p.id }}" class="text-decoration-none fw-semibold text-dark">{{ p.nama }}</a>
+                    <div class="text-muted" style="font-size:.72rem;">#{{ p.id }}</div>
+                </td>
+                <td class="text-muted">{{ segs[0].versi }}</td>
+                <td>
+                    {% if segs|length == 1 %}
+                        <span class="formula-row ld-formula-cell"
+                              data-hmin="{{ segs[0].h_min if segs[0].h_min is not none else '' }}"
+                              data-hmax="{{ segs[0].h_max if segs[0].h_max is not none else '' }}"
+                              data-c="{{ segs[0].c_ }}" data-a="{{ segs[0].a_ }}" data-b="{{ segs[0].b_ }}">
+                            C {{ segs[0].c_ }} · A {{ segs[0].a_ }} · B {{ segs[0].b_ }}
+                        </span>
+                    {% else %}
+                        <div class="d-flex flex-column gap-1">
+                        {% for s in segs %}
+                            <span class="formula-row ld-segrow ld-formula-cell px-1 rounded"
+                                  data-hmin="{{ s.h_min if s.h_min is not none else '' }}"
+                                  data-hmax="{{ s.h_max if s.h_max is not none else '' }}"
+                                  data-c="{{ s.c_ }}" data-a="{{ s.a_ }}" data-b="{{ s.b_ }}">
+                                {{ s.h_min if s.h_min is not none else '-∞' }}&lt;H&lt;{{ s.h_max if s.h_max is not none else '∞' }}:
+                                C {{ s.c_ }} · A {{ s.a_ }} · B {{ s.b_ }}
+                            </span>
+                        {% endfor %}
+                        </div>
+                    {% endif %}
+                </td>
+                <td>
+                    <input type="text" inputmode="decimal" class="form-control form-control-sm ld-input-sm tma-input"
+                           oninput="getDebit(this)" placeholder="0.00">
+                </td>
+                <td>
+                    <span class="ld-result-sm q_">-</span>
+                </td>
+                <td>
                     {% if is_admin %}
                     <a href="{{ url_for('pos.lengkung_debit_edit', pos_id=p.id) }}" class="ld-edit-link" title="Edit rumus">
                         <i class="bi bi-pencil-square"></i>
                     </a>
                     {% endif %}
-                </div>
-            </div>
-
-            <div class="d-flex align-items-center gap-2 mt-3">
-                <div class="flex-grow-1">
-                    <div class="ld-label mb-1">TMA (meter)</div>
-                    <input type="text" inputmode="decimal" class="form-control form-control-sm ld-input tma-input"
-                           oninput="getDebit(this)" placeholder="0.00">
-                </div>
-                <div>
-                    <div class="ld-label mb-1">Debit (M³/s)</div>
-                    <div class="ld-result q_ px-2 py-1">-</div>
-                </div>
-            </div>
-
-            {% if segs|length > 1 %}
-            <div class="mt-3">
-                <a class="small text-decoration-none ld-edit-link" data-bs-toggle="collapse" href="#segs-{{ p.id }}">
-                    <i class="bi bi-chevron-down"></i> lihat segmen rumus
-                </a>
-                <div class="collapse mt-2" id="segs-{{ p.id }}">
-                    <table class="table table-sm small mb-0">
-                        <thead><tr class="ld-label"><th>Rentang H</th><th>C</th><th>A</th><th>B</th></tr></thead>
-                        <tbody>
-                        {% for s in segs %}
-                            <tr class="formula-row ld-segrow"
-                                data-hmin="{{ s.h_min if s.h_min is not none else '' }}"
-                                data-hmax="{{ s.h_max if s.h_max is not none else '' }}"
-                                data-c="{{ s.c_ }}" data-a="{{ s.a_ }}" data-b="{{ s.b_ }}">
-                                <td>{{ s.h_min if s.h_min is not none else '-∞' }} &lt; H &lt; {{ s.h_max if s.h_max is not none else '∞' }}</td>
-                                <td>{{ s.c_ }}</td><td>{{ s.a_ }}</td><td>{{ s.b_ }}</td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            {% else %}
-            <div class="formula-row d-none"
-                 data-hmin="{{ segs[0].h_min if segs[0].h_min is not none else '' }}"
-                 data-hmax="{{ segs[0].h_max if segs[0].h_max is not none else '' }}"
-                 data-c="{{ segs[0].c_ }}" data-a="{{ segs[0].a_ }}" data-b="{{ segs[0].b_ }}"></div>
-            <div class="ld-label mt-3 font-monospace">C {{ segs[0].c_ }} &middot; A {{ segs[0].a_ }} &middot; B {{ segs[0].b_ }}</div>
-            {% endif %}
-        </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
-    {% endfor %}
 </div>
 {% endfor %}
 {% endblock %}

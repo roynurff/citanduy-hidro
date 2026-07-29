@@ -126,9 +126,13 @@ function lengkungForm() {
                 }
             }
             this.saving = true;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             fetch(window.location.pathname, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
                 body: JSON.stringify({segmen: this.segmen})
             })
             .then(r => r.json())

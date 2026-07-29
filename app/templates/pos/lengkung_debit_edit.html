@@ -1,66 +1,104 @@
 {% extends 'base.html' %}
-{% block content %}
-<h2 class="border-start border-5 border-danger ps-2 fw-lighter">Edit Rumus Debit — {{ pos.nama }}</h2>
-<a href="{{ url_for('pos.lengkung_debit') }}" class="small"><i class="bi bi-arrow-left"></i> Kembali</a>
+{% block head %}
+<style>
+.ld-edit-card { border: 1px solid #e2e2e4; border-radius: .75rem; background: #fff; }
+.ld-seg-row { border: 1px solid #e2e2e4; border-radius: .6rem; background: #fafafa; padding: .6rem; }
+.ld-input { border-radius: .5rem !important; border: 1px solid #e2e2e4 !important; }
+.ld-input:focus { border-color: #a1a1aa !important; box-shadow: 0 0 0 3px rgba(0,0,0,.05) !important; }
+.ld-btn-add { border-radius: .5rem; border: 1px dashed #a1a1aa; color: #52525b; }
+.ld-btn-add:hover { background: #fafafa; }
+.ld-history-card { border: 1px solid #e2e2e4; border-radius: .6rem; background: #fafafa; }
+</style>
+{% endblock %}
 
-<div class="row mt-3">
-    <div class="col-sm-8">
+{% block content %}
+<h2 class="border-start border-5 border-danger ps-2 fw-lighter">Edit Rumus Debit</h2>
+<div class="mb-3">
+    <a href="{{ url_for('pos.lengkung_debit') }}" class="small text-decoration-none">
+        <i class="bi bi-arrow-left"></i> Kembali
+    </a>
+    <span class="fw-semibold ms-2">{{ pos.nama }}</span>
+    <span class="text-muted small">#{{ pos.id }}</span>
+</div>
+
+<div class="row">
+    <div class="col-lg-7">
         <div x-data="lengkungForm()" x-init="init()">
-            <div class="alert alert-info small">
-                Menyimpan akan membuat <b>edisi baru</b> hari ini.
-                Rumus lama tetap tersimpan sebagai histori, tidak akan hilang.
+            <div class="alert alert-light border small mb-3">
+                <i class="bi bi-info-circle"></i>
+                Menyimpan akan membuat <b>edisi baru</b> hari ini. Rumus lama tetap tersimpan sebagai histori.
             </div>
 
-            <template x-for="(s, i) in segmen" :key="i">
-                <div class="row g-2 align-items-center mb-2">
-                    <div class="col"><input type="number" step="any" x-model.number="s.h_min" placeholder="H min (kosongkan = -∞)" class="form-control form-control-sm"></div>
-                    <div class="col"><input type="number" step="any" x-model.number="s.h_max" placeholder="H max (kosongkan = ∞)" class="form-control form-control-sm"></div>
-                    <div class="col"><input type="number" step="any" x-model.number="s.c_" placeholder="C" class="form-control form-control-sm" required></div>
-                    <div class="col"><input type="number" step="any" x-model.number="s.a_" placeholder="A" class="form-control form-control-sm" required></div>
-                    <div class="col"><input type="number" step="any" x-model.number="s.b_" placeholder="B" class="form-control form-control-sm" required></div>
-                    <div class="col-auto">
-                        <button type="button" @click="segmen.splice(i, 1)" class="btn btn-sm btn-outline-danger" title="Hapus segmen">
-                            <i class="bi bi-trash"></i>
-                        </button>
+            <div class="d-flex flex-column gap-2">
+                <template x-for="(s, i) in segmen" :key="i">
+                    <div class="ld-seg-row">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small fw-semibold text-muted">Segmen <span x-text="i + 1"></span></span>
+                            <button type="button" @click="segmen.splice(i, 1)" class="btn btn-sm btn-link text-danger p-0" title="Hapus segmen">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small text-muted mb-1">H min</label>
+                                <input type="number" step="any" x-model.number="s.h_min" placeholder="-∞" class="form-control form-control-sm ld-input">
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small text-muted mb-1">H max</label>
+                                <input type="number" step="any" x-model.number="s.h_max" placeholder="∞" class="form-control form-control-sm ld-input">
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <label class="form-label small text-muted mb-1">C</label>
+                                <input type="number" step="any" x-model.number="s.c_" class="form-control form-control-sm ld-input" required>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <label class="form-label small text-muted mb-1">A</label>
+                                <input type="number" step="any" x-model.number="s.a_" class="form-control form-control-sm ld-input" required>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <label class="form-label small text-muted mb-1">B</label>
+                                <input type="number" step="any" x-model.number="s.b_" class="form-control form-control-sm ld-input" required>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </template>
+                </template>
+            </div>
 
             <button type="button" @click="segmen.push({h_min: null, h_max: null, c_: null, a_: null, b_: null})"
-                    class="btn btn-sm btn-outline-primary mt-1">
+                    class="btn ld-btn-add btn-sm mt-3 w-100">
                 <i class="bi bi-plus-lg"></i> Tambah Segmen
             </button>
 
-            <div class="mt-3">
-                <button type="button" @click="save()" class="btn btn-success" :disabled="saving">
-                    <span x-show="saving" class="spinner-border spinner-border-sm me-1"></span>
-                    Simpan (Edisi Baru)
+            <div class="mt-3 d-flex align-items-center gap-2">
+                <button type="button" @click="save()" class="btn btn-dark" :disabled="saving">
+                    <span x-show="saving" x-cloak class="spinner-border spinner-border-sm me-1"></span>
+                    <span x-text="saving ? 'Menyimpan...' : 'Simpan (Edisi Baru)'"></span>
                 </button>
-                <span x-show="errorMsg" class="text-danger small ms-2" x-text="errorMsg"></span>
+                <span x-show="errorMsg" x-cloak class="text-danger small" x-text="errorMsg"></span>
             </div>
         </div>
     </div>
 
-    <div class="col-sm-4">
-        <h6>Histori Edisi</h6>
+    <div class="col-lg-5">
+        <div class="ld-label mb-2" style="font-size:.75rem;color:#71717a;text-transform:uppercase;letter-spacing:.03em;">Histori Edisi</div>
         {% if histori %}
+            <div class="d-flex flex-column gap-2">
             {% for versi, segs in histori.items() %}
-            <div class="card mb-2">
-                <div class="card-body py-2">
-                    <div class="small fw-bold">{{ versi }}</div>
-                    <table class="table table-sm mb-0 small">
-                        <tbody>
-                        {% for s in segs %}
-                        <tr>
-                            <td>{{ s.h_min if s.h_min is not none else '-∞' }}&lt;H&lt;{{ s.h_max if s.h_max is not none else '∞' }}</td>
-                            <td>C={{ s.c_ }}</td><td>A={{ s.a_ }}</td><td>B={{ s.b_ }}</td>
-                        </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="ld-history-card p-2">
+                <div class="small fw-semibold mb-1">{{ versi }}</div>
+                <table class="table table-sm mb-0 small">
+                    <tbody>
+                    {% for s in segs %}
+                    <tr>
+                        <td class="text-muted">{{ s.h_min if s.h_min is not none else '-∞' }}&lt;H&lt;{{ s.h_max if s.h_max is not none else '∞' }}</td>
+                        <td>C={{ s.c_ }}</td><td>A={{ s.a_ }}</td><td>B={{ s.b_ }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
             {% endfor %}
+            </div>
         {% else %}
             <p class="text-muted small">Belum ada histori edisi sebelumnya.</p>
         {% endif %}

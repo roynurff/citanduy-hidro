@@ -22,6 +22,9 @@
         <div class="btn-group end-0" role="group" aria-label="Basic outlined example">
             <button type="button" class="btn btn-outline-secondary disabled">Sehari</button>
             <a href="/pda/{{ ctx.pos.id }}/{{ ctx.sampling.strftime('%Y/%m') }}" role="button" class="btn btn-outline-primary">Sebulan</a>
+            {% if ctx.pos.punya_debit %}
+            <a href="{{ url_for('pda.show_debit_month', id=ctx.pos.id, tahun=ctx.sampling.year, bulan=ctx.sampling.month) }}" class="btn btn-outline-success">Debit</a>
+            {% endif %}
           </div>
     
     </div>

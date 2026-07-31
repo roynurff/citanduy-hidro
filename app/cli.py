@@ -5,6 +5,18 @@ import click
 import datetime
 import json
 
+def send_wa(msg: str, target: str = None):
+    import requests as req
+    payload = {'message': msg}
+    if target:
+        payload['target'] = target
+    try:
+        resp = req.post('http://127.0.0.1:3001/send', 
+                       json=payload, timeout=10)
+        return resp.status_code == 200
+    except Exception as e:
+        print(f'WA send error: {e}')
+        return False
 
 def register(app):
     @app.cli.command('send-terlambat-pda7')
@@ -326,6 +338,43 @@ def register(app):
                 data = rain_list[i]
                 msg += '{}\. {} *{:.0f}mm* \(*{}* menit\)\n'.format(i+1, data['pos'], data['rain'], int(data['duration'] /60))
             msg += '\n\n[Peta Hujan BBWS Citanduy](https://sihka.bbwscitanduy.id/map/hujan)'
+            url = 'https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage?chat_id=' + CTY_OFFICE_ID + '&text=' + msg + '&parse_mode=MarkdownV2'
+            resp = requests.get(url)
+            send_wa(msg.replace('\\', '').replace('*', '').replace('\[', '[').replace('\]', ']'))
+        click.echo(msg)
+
+    @app.cli.command('ews-wlevel')
+    def ews_wlevel(now=datetime.datetime.now()):
+        warning_list = get_warning_wlevel()
+        if not warning_list:
+            click.echo('Tidak ada TMA siaga.')
+            return
+
+        msg = '*\[PERINGATAN TINGGI MUKA AIR\]*\n*BBWS Citanduy*\n\ndibuat: *{}*\n\n'.format(
+            now.strftime('%d %b %Y jam %H:%M'))
+        
+        for i, item in enumerate(warning_list):
+            pos = item['pos']
+            latest = item['telemetri']['latest']
+            wlevel = item['wlevel'][-1][1] if isinstance(item.get('wlevel'), list) else latest['wlevel']
+            
+            # Hitung level siaga
+            sh, sk, sm = pos.get('sh'), pos.get('sk'), pos.get('sm')
+            if sm and wlevel >= sm:
+                status = 'SIAGA MERAH'
+            elif sk and wlevel >= sk:
+                status = 'SIAGA KUNING'
+            elif sh and wlevel >= sh:
+                status = 'SIAGA HIJAU'
+            else:
+                status = 'WASPADA'
+
+            msg += '{}\. {} *{:.2f} cm* \[{}\]\n'.format(
+                i+1, pos['nama'], wlevel, status)
+
+        msg += '\n\n[Peta EWS BBWS Citanduy](https://sihka.bbwscitanduy.id/ews)'
+        
+        if BOT_TOKEN and CTY_OFFICE_ID:
             url = 'https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage?chat_id=' + CTY_OFFICE_ID + '&text=' + msg + '&parse_mode=MarkdownV2'
             resp = requests.get(url)
         click.echo(msg)

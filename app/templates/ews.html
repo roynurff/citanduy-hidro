@@ -958,7 +958,7 @@
                 fetch('/ews?wlevel=1')
                     // .then(response => response.json())
                     .then(r => {
-                        if (IS_DEV && !r.ok) return Promise.resolve(MOCK_WLEVEL); // paksa mock dulu
+                        if (IS_DEV) return Promise.resolve(MOCK_WLEVEL); // paksa mock dulu
                         return r.json();
                     })
                     .then(data => {

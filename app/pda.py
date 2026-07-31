@@ -25,6 +25,171 @@ PDAPCH = {
     32: (20, 58, 64, 67), # bunter_32: danasari_20, kawali_58, rancah_64, tanjungjaya_67
     
 }
+
+def hitung_debit(h, segs):
+    '''h dalam meter, segs = list LengkungDebit terurut h_min asc'''
+    if not segs:
+        return None
+    match = None
+    for s in segs:
+        if (s.h_min is None or h >= s.h_min) and (s.h_max is None or h <= s.h_max):
+            match = s
+    if match is None:
+        match = segs[0]
+    try:
+        return match.c_ * (h + match.a_) ** match.b_
+    except (ValueError, ZeroDivisionError):
+        return None
+
+@bp.route('/debit/<int:id>/<int:tahun>/<int:bulan>')
+@login_required
+def show_debit_month(id, tahun, bulan):
+    try:
+        pos = Pos.get(id)
+    except DoesNotExist:
+        return abort(404)
+
+    segs = list(LengkungDebit.select().where(LengkungDebit.pos==pos).order_by(
+        LengkungDebit.versi.desc(), LengkungDebit.h_min))
+    if not segs:
+        abort(404)  # pos ini belum punya rumus lengkung debit
+    max_versi = max(s.versi for s in segs)
+    segs = [s for s in segs if s.versi == max_versi]
+
+    samp = "{}-{}-1".format(tahun, bulan)
+    (_sampling, sampling, sampling_) = get_sampling(samp)
+    _sampling = sampling - datetime.timedelta(days=2)
+    if sampling.strftime('%Y%m') >= datetime.date.today().strftime('%Y%m'):
+        sampling_ = None
+    else:
+        sampling_ = (sampling + datetime.timedelta(days=32)).replace(day=1)
+
+    rds = RDaily.select(RDaily.raw, RDaily.source).where(RDaily.pos_id==pos.id,
+                                RDaily.sampling.year==sampling.year,
+                                RDaily.sampling.month==sampling.month).order_by(RDaily.sampling)
+
+    fig = go.Figure()
+    fig.update_layout(title='Debit Harian {}'.format(pos.nama.replace('PDA ', '')),
+                    xaxis_title='Tanggal',
+                    yaxis_title='Debit (m³/dt)',
+                    template='plotly_white',
+                    yaxis=dict(fixedrange=True, showgrid=True, zeroline=True,
+                               gridcolor='LightGray', zerolinecolor='LightGray'))
+
+    daily_rows = []
+    rata2 = None
+    total_aliran = None
+
+    if len(rds):
+        wlevels = reduce((lambda x, y: x + y), [json.loads(r.raw) for r in rds])
+        df = pd.DataFrame(wlevels)
+        df['wlevel'] = pd.to_numeric(df['wlevel'], errors='coerce')
+        df.set_index('sampling', inplace=True)
+        df.index = pd.to_datetime(df.index)
+        if rds[0].source in ('SB', 'SC'):
+            df['wlevel'] = df['wlevel'] * 100  # jadi centimeter, konsisten dg source lain
+        df_daily = df['wlevel'].resample('1D').mean().to_frame(name='wlevel')
+        df_daily['h'] = df_daily['wlevel'] / 100.0  # ke meter
+        df_daily['debit'] = df_daily['h'].apply(lambda h: hitung_debit(h, segs) if pd.notna(h) else None)
+
+        fig.add_trace(go.Scatter(x=df_daily.index, y=df_daily['debit'], mode='lines', name='Debit'))
+
+        valid = df_daily['debit'].dropna()
+        if len(valid):
+            rata2 = valid.mean()
+            total_aliran = valid.sum() * 86400 / 1_000_000  # m3/dt -> juta m3 per bulan
+
+        for tgl, row in df_daily.iterrows():
+            daily_rows.append({
+                'tanggal': tgl.strftime('%-d %b') if hasattr(tgl, 'strftime') else str(tgl),
+                'debit': '{:.2f}'.format(row['debit']) if pd.notna(row['debit']) else '-'
+            })
+
+    graph_json = pio.to_json(fig)
+    ctx = {
+        'pos': pos,
+        'sampling': sampling,
+        '_sampling': _sampling,
+        'sampling_': sampling_,
+        'graph': graph_json,
+        'rata2': '{:.2f}'.format(rata2) if rata2 is not None else '-',
+        'total_aliran': '{:.2f}'.format(total_aliran) if total_aliran is not None else '-',
+        'daily_rows': daily_rows,
+    }
+    return render_template('pda/debit_month.html', ctx=ctx)
+
+@bp.route('/debit/<int:id>/<int:tahun>')
+@login_required
+def show_debit_year(id, tahun):
+    try:
+        pos = Pos.get(id)
+    except DoesNotExist:
+        return abort(404)
+
+    segs = list(LengkungDebit.select().where(LengkungDebit.pos==pos).order_by(
+        LengkungDebit.versi.desc(), LengkungDebit.h_min))
+    if not segs:
+        abort(404)
+    max_versi = max(s.versi for s in segs)
+    segs = [s for s in segs if s.versi == max_versi]
+
+    tahun_ = tahun + 1 if tahun < datetime.date.today().year else None
+    _tahun = tahun - 1
+
+    rds = RDaily.select(RDaily.raw, RDaily.source).where(RDaily.pos_id==pos.id,
+                                RDaily.sampling.year==tahun).order_by(RDaily.sampling)
+
+    fig = go.Figure()
+    fig.update_layout(title='Debit Bulanan {} - {}'.format(pos.nama.replace('PDA ', ''), tahun),
+                    xaxis_title='Bulan',
+                    yaxis_title='Debit (m³/dt)',
+                    template='plotly_white',
+                    yaxis=dict(fixedrange=True, showgrid=True, zeroline=True,
+                               gridcolor='LightGray', zerolinecolor='LightGray'))
+
+    monthly_rows = []
+    rata2 = None
+    total_aliran = None
+
+    if len(rds):
+        wlevels = reduce((lambda x, y: x + y), [json.loads(r.raw) for r in rds])
+        df = pd.DataFrame(wlevels)
+        df['wlevel'] = pd.to_numeric(df['wlevel'], errors='coerce')
+        df.set_index('sampling', inplace=True)
+        df.index = pd.to_datetime(df.index)
+        if rds[0].source in ('SB', 'SC'):
+            df['wlevel'] = df['wlevel'] * 100
+        df_month = df['wlevel'].resample('1ME').mean().to_frame(name='wlevel')
+        df_month['h'] = df_month['wlevel'] / 100.0
+        df_month['debit'] = df_month['h'].apply(lambda h: hitung_debit(h, segs) if pd.notna(h) else None)
+
+        fig.add_trace(go.Scatter(x=df_month.index, y=df_month['debit'], mode='lines+markers', name='Debit'))
+
+        valid = df_month['debit'].dropna()
+        if len(valid):
+            rata2 = valid.mean()
+            hari_per_bulan = df_month.index.days_in_month
+            total_aliran = (df_month['debit'].fillna(0) * hari_per_bulan * 86400 / 1_000_000).sum()
+
+        for bln, row in df_month.iterrows():
+            monthly_rows.append({
+                'bulan': bln.strftime('%b'),
+                'debit': '{:.2f}'.format(row['debit']) if pd.notna(row['debit']) else '-'
+            })
+
+    graph_json = pio.to_json(fig)
+    ctx = {
+        'pos': pos,
+        'tahun': tahun,
+        '_tahun': _tahun,
+        'tahun_': tahun_,
+        'graph': graph_json,
+        'rata2': '{:.2f}'.format(rata2) if rata2 is not None else '-',
+        'total_aliran': '{:.2f}'.format(total_aliran) if total_aliran is not None else '-',
+        'monthly_rows': monthly_rows,
+    }
+    return render_template('pda/debit_year.html', ctx=ctx)
+
 @bp.route('/<int:id>/<int:tahun>')
 def show_year(id, tahun):
     try:
@@ -143,6 +308,7 @@ def show_month(id, tahun, bulan):
         'mean_table': table_data,
         'sibling_pos': sibling_pos,
     }
+    pos.punya_debit = LengkungDebit.select().where(LengkungDebit.pos==pos).exists()
     return render_template('pda/month.html', ctx=ctx)
 
 @bp.route('/<int:id>')
@@ -181,6 +347,7 @@ def show(id):
         'form': form,
         'notes': notes
     }
+    pos.punya_debit = LengkungDebit.select().where(LengkungDebit.pos==pos).exists()
     return render_template('pda/show.html', ctx=ctx)        
 
     

@@ -74,6 +74,9 @@
         <div class="btn-group end-0" role="group" aria-label="Basic outlined example">
             <a href="/pda/{{ ctx.pos.id }}" role="button" class="btn btn-outline-primary">Sehari</a>
             <button type="button" class="btn btn-outline-secondary disabled">Sebulan</button>
+            {% if ctx.pos.punya_debit %}
+            <a href="{{ url_for('pda.show_debit_month', id=ctx.pos.id, tahun=ctx.sampling.year, bulan=ctx.sampling.month) }}" class="btn btn-outline-success">Debit</a>
+            {% endif %}
           </div>
     
     </div>

@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Data Debit Sebulan {{ ctx.pos.nama }}{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.plot.ly/plotly-3.0.1.js" charset="utf-8"></script>
+<style>
+.debit-side-table { font-size: .85rem; }
+.debit-side-table td, .debit-side-table th { padding: .35rem .5rem; }
+.debit-summary td:first-child { color: #71717a; }
+.debit-summary td:last-child { text-align: right; font-weight: 600; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-9">
+        <h1 class="fw-lighter">
+          {{ ctx.pos.nama|replace('PDA ', '') }}
+          <small class="fs-6 fw-normal badge rounded-pill" style="background-color: var(--bs-orange)">PDA</small>
+          <small class="ms-3 fs-5 text-secondary">Sungai {{ ctx.pos.sungai }}</small>
+        </h1>
+    </div>
+    <div class="col-md-3 text-end">
+        <div class="btn-group" role="group">
+            <a href="/pda/{{ ctx.pos.id }}" role="button" class="btn btn-outline-primary">Sehari</a>
+            <a href="{{ url_for('pda.show_month', id=ctx.pos.id, tahun=ctx.sampling.year, bulan=ctx.sampling.month) }}" class="btn btn-outline-secondary">TMA</a>
+            <button type="button" class="btn btn-primary disabled">Debit</button>
+            <a href="{{ url_for('pda.show_debit_year', id=ctx.pos.id, tahun=ctx.sampling.year) }}" class="btn btn-outline-primary">Setahun</a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-2">
+  <div class="col-sm-6"><a href="/pda"><h2><i class="bi bi-arrow-left"></i></h2></a></div>
+  <div class="col-sm-6 text-end mb-3">
+      <a href="{{ url_for('pda.show_debit_month', id=ctx.pos.id, tahun=ctx._sampling.year, bulan=ctx._sampling.month) }}" class="btn btn-outline-primary me-5">{{ ctx._sampling.strftime('%b') }}</a>
+      <span class="fs-3">{{ ctx.sampling.strftime('%b %Y') }}</span>
+      {% if ctx.sampling_ %}
+      <a class="btn btn-outline-primary ms-5" href="{{ url_for('pda.show_debit_month', id=ctx.pos.id, tahun=ctx.sampling_.year, bulan=ctx.sampling_.month) }}">{{ ctx.sampling_.strftime('%b') }}</a>
+      {% else %}<button class="btn btn-outline-secondary ms-5">-</button>{% endif %}
+  </div>
+</div>
+
+<div class="row">
+    <div class="col-sm-9">
+        <div id="graph" style="width:100%;height:500px;"></div>
+        <p class="text-secondary"><b>Catatan:</b> Debit hasil konversi TMA menggunakan rumus lengkung debit.</p>
+    </div>
+    <div class="col-sm-3">
+        <table class="table table-sm table-bordered debit-side-table debit-summary mb-3">
+            <tr><td>Rata-rata (m³/dt)</td><td>{{ ctx.rata2 }}</td></tr>
+            <tr><td>Total Aliran (x10⁶ m³)</td><td>{{ ctx.total_aliran }}</td></tr>
+        </table>
+        <p class="fw-semibold small mb-1">Debit {{ ctx.sampling.strftime('%B %Y') }}</p>
+        <div style="max-height:480px; overflow-y:auto;">
+        <table class="table table-sm table-bordered debit-side-table mb-0">
+            <thead class="table-light"><tr><th>Tanggal</th><th>Debit Harian (m³/dt)</th></tr></thead>
+            <tbody>
+            {% for r in ctx.daily_rows %}
+            <tr><td>{{ r.tanggal }}</td><td class="text-end">{{ r.debit }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js_foot %}
+<script>
+  var graphData = {{ ctx.graph | safe }};
+  Plotly.newPlot('graph', graphData.data, graphData.layout);
+</script>
+{% endblock %}

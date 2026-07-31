@@ -333,6 +333,7 @@ def register(app):
                 click.echo('Hujan: {} Durasi: {}'.format(hujan, durasi))
         msg = ''
         if rain_list:
+            # Telegram msg (existing)
             msg = '*\[PERINGATAN HUJAN\]*\n*BBWS Citanduy*\n\ndibuat: *{}*\n\n'.format(now.strftime('%d %b %Y jam %H:%M'))
             for i in range(len(rain_list)):
                 data = rain_list[i]
@@ -340,7 +341,15 @@ def register(app):
             msg += '\n\n[Peta Hujan BBWS Citanduy](https://sihka.bbwscitanduy.id/map/hujan)'
             url = 'https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage?chat_id=' + CTY_OFFICE_ID + '&text=' + msg + '&parse_mode=MarkdownV2'
             resp = requests.get(url)
-            send_wa(msg.replace('\\', '').replace('*', '').replace('\[', '[').replace('\]', ']'))
+
+            # WA msg (plain text)
+            msg_wa = 'PERINGATAN HUJAN\nBBWS Citanduy\nDibuat: {}\n\n'.format(now.strftime('%d %b %Y jam %H:%M'))
+            for i in range(len(rain_list)):
+                data = rain_list[i]
+                msg_wa += '{}. {} {:.0f}mm ({} menit)\n'.format(i+1, data['pos'], data['rain'], int(data['duration']/60))
+            msg_wa += '\nhttps://sihka.bbwscitanduy.id/map/hujan'
+            send_wa(msg_wa)
+
         click.echo(msg)
 
     @app.cli.command('ews-wlevel')
@@ -377,6 +386,23 @@ def register(app):
         if BOT_TOKEN and CTY_OFFICE_ID:
             url = 'https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage?chat_id=' + CTY_OFFICE_ID + '&text=' + msg + '&parse_mode=MarkdownV2'
             resp = requests.get(url)
+
+        # WA msg
+        msg_wa = '⚠️ PERINGATAN TINGGI MUKA AIR\nBBWS Citanduy\nDibuat: {}\n\n'.format(
+            now.strftime('%d %b %Y jam %H:%M'))
+        for i, item in enumerate(warning_list):
+            pos = item['pos']
+            latest = item['telemetri']['latest']
+            wlevel = item['wlevel'][-1][1] if isinstance(item.get('wlevel'), list) else latest['wlevel']
+            sh, sk, sm = pos.get('sh'), pos.get('sk'), pos.get('sm')
+            if sm and wlevel >= sm:       status = 'SIAGA MERAH'
+            elif sk and wlevel >= sk:     status = 'SIAGA KUNING'
+            elif sh and wlevel >= sh:     status = 'SIAGA HIJAU'
+            else:                         status = 'WASPADA'
+            msg_wa += '{}. {} {:.2f} cm [{}]\n'.format(i+1, pos['nama'], wlevel, status)
+        msg_wa += '\nhttps://sihka.bbwscitanduy.id/ews'
+        send_wa(msg_wa)
+
         click.echo(msg)
 
                 

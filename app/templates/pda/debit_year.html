@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Data Debit Setahun {{ ctx.pos.nama }}{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.plot.ly/plotly-3.0.1.js" charset="utf-8"></script>
+<style>
+.debit-side-table { font-size: .85rem; }
+.debit-side-table td, .debit-side-table th { padding: .35rem .5rem; }
+.debit-summary td:first-child { color: #71717a; }
+.debit-summary td:last-child { text-align: right; font-weight: 600; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-9">
+        <h1 class="fw-lighter">
+          {{ ctx.pos.nama|replace('PDA ', '') }}
+          <small class="fs-6 fw-normal badge rounded-pill" style="background-color: var(--bs-orange)">PDA</small>
+          <small class="ms-3 fs-5 text-secondary">Sungai {{ ctx.pos.sungai }}</small>
+        </h1>
+    </div>
+    <div class="col-md-3 text-end">
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('pda.show_debit_month', id=ctx.pos.id, tahun=ctx.tahun, bulan=1) }}" class="btn btn-outline-primary">Debit Bulanan</a>
+            <button type="button" class="btn btn-success disabled">Setahun</button>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-2">
+  <div class="col-sm-6"><a href="/pda"><h2><i class="bi bi-arrow-left"></i></h2></a></div>
+  <div class="col-sm-6 text-end mb-3">
+      <a href="{{ url_for('pda.show_debit_year', id=ctx.pos.id, tahun=ctx._tahun) }}" class="btn btn-outline-primary me-5">{{ ctx._tahun }}</a>
+      <span class="fs-3">{{ ctx.tahun }}</span>
+      {% if ctx.tahun_ %}
+      <a class="btn btn-outline-primary ms-5" href="{{ url_for('pda.show_debit_year', id=ctx.pos.id, tahun=ctx.tahun_) }}">{{ ctx.tahun_ }}</a>
+      {% else %}<button class="btn btn-outline-secondary ms-5">-</button>{% endif %}
+  </div>
+</div>
+
+<div class="row">
+    <div class="col-sm-9">
+        <div id="graph" style="width:100%;height:500px;"></div>
+        <p class="text-secondary"><b>Catatan:</b> Debit hasil rata-rata bulanan menggunakan rumus lengkung debit.</p>
+    </div>
+    <div class="col-sm-3">
+        <table class="table table-sm table-bordered debit-side-table debit-summary mb-3">
+            <tr><td>Rata-rata (m³/dt)</td><td>{{ ctx.rata2 }}</td></tr>
+            <tr><td>Total Aliran (x10⁶ m³)</td><td>{{ ctx.total_aliran }}</td></tr>
+        </table>
+        <p class="fw-semibold small mb-1">Debit {{ ctx.tahun }}</p>
+        <table class="table table-sm table-bordered debit-side-table mb-0">
+            <thead class="table-light"><tr><th>Bulan</th><th>Debit (m³/dt)</th></tr></thead>
+            <tbody>
+            {% for r in ctx.monthly_rows %}
+            <tr><td>{{ r.bulan }}</td><td class="text-end">{{ r.debit }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block js_foot %}
+<script>
+  var graphData = {{ ctx.graph | safe }};
+  Plotly.newPlot('graph', graphData.data, graphData.layout);
+</script>
+{% endblock %}

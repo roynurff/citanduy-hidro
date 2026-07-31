@@ -344,7 +344,7 @@ def register(app):
             resp = requests.get(url)
 
             # WA msg (plain text)
-            msg_wa = 'PERINGATAN HUJAN\nBBWS Citanduy\nDibuat: {}\n\n'.format(now.strftime('%d %b %Y jam %H:%M'))
+            msg_wa = '⚠️ PERINGATAN HUJAN\nBBWS Citanduy\nDibuat: {}\n\n'.format(now.strftime('%d %b %Y jam %H:%M'))
             for i in range(len(rain_list)):
                 data = rain_list[i]
                 msg_wa += '{}. {} {:.0f}mm ({} menit)\n'.format(i+1, data['pos'], data['rain'], int(data['duration']/60))

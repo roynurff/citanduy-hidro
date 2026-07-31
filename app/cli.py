@@ -355,7 +355,7 @@ def register(app):
 
     @app.cli.command('ews-wlevel')
     def ews_wlevel(now=datetime.datetime.now()):
-        warning_list = get_warning_wlevel()
+        warning_list = [w for w in get_warning_wlevel() if w['status'] != 'normal']
         if not warning_list:
             click.echo('Tidak ada TMA siaga.')
             return
@@ -365,22 +365,15 @@ def register(app):
         
         for i, item in enumerate(warning_list):
             pos = item['pos']
-            latest = item['telemetri']['latest']
-            wlevel = item['wlevel'][-1][1] if isinstance(item.get('wlevel'), list) else latest['wlevel']
+            wlevel = item['wlevel'][-1][1]
             
-            # Hitung level siaga
             sh, sk, sm = pos.get('sh'), pos.get('sk'), pos.get('sm')
-            if sm and wlevel >= sm:
-                status = 'SIAGA MERAH'
-            elif sk and wlevel >= sk:
-                status = 'SIAGA KUNING'
-            elif sh and wlevel >= sh:
-                status = 'SIAGA HIJAU'
-            else:
-                status = 'WASPADA'
+            if sm and wlevel >= sm:       status = 'SIAGA MERAH'
+            elif sk and wlevel >= sk:     status = 'SIAGA KUNING'
+            elif sh and wlevel >= sh:     status = 'SIAGA HIJAU'
+            else:                         status = 'WASPADA'
 
-            msg += '{}\. {} *{:.2f} cm* \[{}\]\n'.format(
-                i+1, pos['nama'], wlevel, status)
+            msg += '{}\. {} *{:.2f} cm* \[{}\]\n'.format(i+1, pos['nama'], wlevel, status)
 
         msg += '\n\n[Peta EWS BBWS Citanduy](https://sihka.bbwscitanduy.id/ews)'
         

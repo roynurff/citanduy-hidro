@@ -59,9 +59,9 @@ def get_warning_wlevel(now: Optional[datetime.datetime] = None) -> list:
         #if float(raw[-1]['wlevel']) > 100.0:  # Threshold for warning, e.g., 100 cm
         #    pass
         if r.source == 'SC':
-            wlevels = [(r['sampling'], float(r['wlevel'] * 100)) for r in raw]
+            wlevels = [(row['sampling'], float(row['wlevel'] * 100)) for row in raw]
         else:
-            wlevels = [(r['sampling'], float(r['wlevel'])) for r in raw if 'wlevel' in r and r['wlevel'] is not None]
+            wlevels = [(row['sampling'], float(row['wlevel'])) for row in raw if 'wlevel' in row and row['wlevel'] is not None]
         status = 'normal'
         if wlevels[-1][1] >= pos.sm:
             status = 'siaga merah'

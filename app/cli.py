@@ -1,6 +1,7 @@
 import requests
 from app.models import RDaily, Pos, ManualDaily, FetchLog, LuwesPos, OPos
 from app.config import SOURCE_A, SOURCE_B, SOURCE_C, BOT_TOKEN, CTY_OFFICE_ID, SOURCE_C2
+from app import get_warning_wlevel
 import click
 import datetime
 import json

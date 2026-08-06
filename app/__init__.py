@@ -433,6 +433,7 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                                 # padding kalau jam kurang dari 24
                                 while len(row) < 25:  # 1 tanggal + 24 jam
                                     row.append(None)
+                                row = row[:25]  # truncate kalau lebih dari 24 jam
                                 rerata = round((tma_now / num_data if num_data > 0 else 0), 2)
                                 row.append(round(rerata, 1))
                                 telemetri.append(row)
@@ -465,7 +466,7 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                         return response
                         # ENDOF satu pos sebulan per jam
 
-                    except (ValueError, IndexError) as e:
+                    except (IndexError) as e:
                         print(e)
                         raise ValueError("Invalid pos_id format.")
                         

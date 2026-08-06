@@ -400,10 +400,14 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                         if is_pch:
                             telemetri = []
                             for t in rd_query:
-                                rain_data = t._rain().get('hourly')
+                                rain_data = t._rain().get('hourly', {})
                                 row = [t.sampling.strftime('%d'), t._rain().get('rain24')]
                                 for hour, val in rain_data.items():
                                     row.append(round(val.get('rain'), 1))
+                                # padding kalau jam kurang dari 24
+                                while len(row) < 26:  # 1 tanggal + 1 telemetri + 24 jam
+                                    row.append(None)
+                                row = row[:26]  # truncate kalau lebih
                                 telemetri.append(row)
                             
                             df_tele = pd.DataFrame(telemetri, columns=['tanggal', 'telemetri', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '0', '1', '2', '3', '4', '5', '6'])

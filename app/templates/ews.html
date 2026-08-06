@@ -170,6 +170,9 @@
                     id: 'mapbox/streets-v11'
         }).addTo(map);
 
+        let thiessenData = null;
+        const thiessenLayers = {};
+
         // --- Daftar Layer GeoJSON yang akan dimuat ---
         const geoJsonLayers = {}; // Objek untuk menyimpan referensi layer setelah dimuat
 
@@ -688,11 +691,13 @@
             fetch('/static/js/Riwayat_Banjir_fixed.geojson').then(r => r.json()),
             fetch('/static/js/pda_pch_mapping.json').then(r => r.json()),
             // IS_DEV ? Promise.resolve(MOCK_RAIN) :
-            fetch('/api/rain').then(r => r.json())
+            fetch('/api/rain').then(r => r.json()),
+            fetch('/static/PolygonThiessenUpdateNov2025.json.geojson').then(r => r.json())
         ]).then(([banjir, mapping, rain]) => {
             riwayatBanjirData = banjir;
             pdaPchMapping = mapping;
             rainApiData = rain.items || rain;
+            thiessenData = thiessen;
             sidebarControl.updateScreen();
         }).catch(e => console.error('Gagal load data awal:', e));
 
@@ -801,6 +806,91 @@
             genanganLayers[key] = circle;
         }
 
+        function hitungJamBerturut(rainPerJam, threshold = 10) {
+            if (!rainPerJam) return 0;
+            const entries = Object.entries(rainPerJam)
+                .sort((a, b) => b[0].localeCompare(a[0])); // urutkan terbaru duluan
+            
+            let jamBerturut = 0;
+            for (const [, val] of entries) {
+                if (val.rain >= threshold) {
+                    jamBerturut++;
+                } else {
+                    break; // reset kalau ada jam yang di bawah threshold
+                }
+            }
+            return jamBerturut;
+        }
+
+        // Update polygon thiessen berdasarkan CH
+        function updateThiessenRain() {
+            if (!thiessenData || !rainApiData) return;
+
+            // Hapus layer thiessen lama
+            Object.keys(thiessenLayers).forEach(key => {
+                map.removeLayer(thiessenLayers[key]);
+                delete thiessenLayers[key];
+            });
+
+            // Buat lookup CH per nama PCH
+            const chLookup = {};
+            rainApiData.forEach(item => {
+                const jamBerturut = hitungJamBerturut(item.telemetri?.rain);
+                if (jamBerturut >= 1) {
+                    chLookup[item.pos.nama] = {
+                        jamBerturut,
+                        rain24: item.telemetri.rain24,
+                        intensitasMax: Math.max(...Object.values(item.telemetri.rain).map(v => v.rain))
+                    };
+                }
+            });
+
+            if (!Object.keys(chLookup).length) return;
+
+            // Filter & tampilkan polygon thiessen yang match
+            const matchingFeatures = thiessenData.features.filter(f => chLookup[f.properties.Name]);
+            if (!matchingFeatures.length) return;
+
+            matchingFeatures.forEach(feat => {
+                const pchNama = feat.properties.Name;
+                const ch = chLookup[pchNama];
+                const color = '#0074D9';
+
+                const layer = L.geoJSON(feat, {
+                    style: {
+                        color: color,
+                        fillColor: color,
+                        weight: 2,
+                        fillOpacity: 0.25,
+                        dashArray: '5,4'
+                    },
+                    onEachFeature: (f, lyr) => {
+                        lyr.bindPopup(`
+                            <div style="padding:6px; min-width:210px;">
+                                <h4 style="margin:0 0 4px; color:${color};">Hujan Lebat</h4>
+                                <div style="font-weight:bold;">${pchNama}</div>
+                                <div style="font-size:11px; color:#888; margin:4px 0;">
+                                    CH > 10mm selama <b>${ch.jamBerturut} jam</b> berturut-turut<br>
+                                    Intensitas maks: ${ch.intensitasMax.toFixed(1)} mm/jam<br>
+                                    Total 24 jam: ${ch.rain24} mm
+                                </div>
+                                <div style="font-size:10px; color:#aaa;">Area pengaruh pos ini</div>
+                            </div>
+                        `, {autoPan: true});
+                    }
+                }).addTo(map);
+
+                if (layer._path) layer._path.classList.add('animated-warning');
+                layer.eachLayer(l => {
+                    if (l._path) l._path.classList.add('animated-warning');
+                });
+
+                thiessenLayers[pchNama] = layer;
+            });
+
+            console.log(`Thiessen rain: ${Object.keys(thiessenLayers).length} polygon aktif`);
+        }
+
         function getCHInfo(pdaNama) {
             if (!rainApiData || !pdaPchMapping) return null;
             
@@ -874,6 +964,12 @@
             updateScreen: function() {
                 // Update screen logic here
                 console.log('Updating screen...');
+                fetch('/api/rain')
+                    .then(r => r.json())
+                    .then(data => {
+                        rainApiData = data.items || data;
+                        updateThiessenRain(); // update thiessen setelah data fresh
+                    });
                 this.updateRain();
                 this.updateWlevel();
             },
@@ -946,6 +1042,7 @@
 
                         el_pch_list.innerHTML = '';
                         el_pch_list.appendChild(ol);
+                        updateThiessenRain();
                     })
                     .catch(error => console.error('Error fetching rain data:', error));
             },

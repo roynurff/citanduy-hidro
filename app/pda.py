@@ -227,13 +227,12 @@ def show_month(id, tahun, bulan):
     else:
         sampling_ = (sampling + datetime.timedelta(days=32)).replace(day=1)
 
-    # Pos-pos pada sungai yang sama
     try:
         sibling_pos = Pos.select().where(Pos.sungai==pos.sungai, Pos.tipe=='2').order_by(Pos.elevasi.desc())
     except DoesNotExist:
         sibling_pos = []
-        
-    rds = RDaily.select(RDaily.raw, RDaily.source).where(RDaily.pos_id==pos.id, 
+
+    rds = RDaily.select(RDaily.raw, RDaily.source).where(RDaily.pos_id==pos.id,
                                 RDaily.sampling.year==sampling.year,
                                 RDaily.sampling.month==sampling.month).order_by(
                                     RDaily.sampling)
@@ -248,7 +247,7 @@ def show_month(id, tahun, bulan):
                     xaxis_title='Waktu',
                     yaxis_title='TMA',
                     template='plotly_white',
-                    yaxis=dict(fixedrange=True, 
+                    yaxis=dict(fixedrange=True,
                                title='Tinggi Muka Air (cm)',
                                showgrid=True, zeroline=True, gridcolor='LightGray', zerolinecolor='LightGray'),
                     )
@@ -256,12 +255,13 @@ def show_month(id, tahun, bulan):
         fig.add_hline(y=pos.sh, line_color='rgb(32, 255, 32)')
     if pos.sk:
         fig.add_hline(y=pos.sk, line_color='rgb(214, 193, 54)')
-    if pos.sm: 
+    if pos.sm:
         fig.add_hline(y=pos.sm, line_color='rgb(255, 32, 32)')
 
     table_data = ''
     pos.vendor = '-'
     telemetri_obj = SimpleNamespace(max='-', min='-')
+    days_dict = {}
 
     if len(rds):
         try:
@@ -270,7 +270,6 @@ def show_month(id, tahun, bulan):
             pass
         wlevels = reduce((lambda x, y: x + y), [json.loads(r.raw) for r in rds])
         df_wlevel = pd.DataFrame(wlevels)
-        # Convert wlevel to numeric to avoid mixed type errors
         df_wlevel['wlevel'] = pd.to_numeric(df_wlevel['wlevel'], errors='coerce')
         df_wlevel.set_index('sampling', inplace=True)
         df_wlevel.index = pd.to_datetime(df_wlevel.index)
@@ -280,22 +279,43 @@ def show_month(id, tahun, bulan):
             telemetri_obj.min = '{:.1f}'.format(desc.min().wlevel)
         df_wmean = df_wlevel['wlevel'].resample('1h').mean().to_frame(name='wlevel')
 
-        # data 'wlevel' Luwes dijadikan CentiMeter
         if rds[0].source in ('SB', 'SC'):
-            df_wmean = df_wmean.mul({'wlevel': 100}) 
-        #df_wmax = df_wlevel.resample('1h').max()
-        #df_wmin = df_wlevel.resample('1h').min()
-        
+            df_wmean = df_wmean.mul({'wlevel': 100})
+
         fig.add_trace(go.Scatter(x=df_wmean.index, y=df_wmean['wlevel'], mode='lines', name='Telemetri'))
 
         table_data = df_wmean.to_html(classes="table table-bordered table-striped")
+
+        # resample harian buat tabel sidebar
+        df_daily = df_wmean['wlevel'].resample('1D').mean().to_frame(name='wlevel')
+        df_count = df_wlevel['wlevel'].resample('1D').count().to_frame(name='count')
+        for tgl, row in df_daily.iterrows():
+            d = tgl.day
+            days_dict[d] = {
+                'tele': '{:.1f}'.format(row['wlevel']) if pd.notna(row['wlevel']) else '-',
+                'count': int(df_count.loc[tgl, 'count']) if tgl in df_count.index else 0,
+                'manual': '-'
+            }
+
     pos.telemetri = telemetri_obj
+
     if len(manuals):
-        manuals = reduce((lambda x, y: x + y), [m for m in manuals])
-        df_man = pd.DataFrame([{'sampling': m[0], 'wlevel': m[1]} for m in manuals])
-        
+        manuals_flat = reduce((lambda x, y: x + y), [m for m in manuals])
+        df_man = pd.DataFrame([{'sampling': m[0], 'wlevel': m[1]} for m in manuals_flat])
         fig.add_trace(go.Scatter(x=df_man['sampling'], y=df_man['wlevel'], mode='lines', name='Manual'))
-    
+
+    for m in select_manual:
+        d = m.sampling.day
+        tma = json.loads(m.tma)
+        vals = [float(v) for k, v in tma.items() if k in ('07', '12', '17') and v]
+        if vals and d in days_dict:
+            days_dict[d]['manual'] = '{:.1f}'.format(sum(vals) / len(vals))
+        elif vals:
+            days_dict[d] = {'tele': '-', 'count': 0, 'manual': '{:.1f}'.format(sum(vals) / len(vals))}
+
+    from collections import OrderedDict
+    days_sorted = OrderedDict(sorted(days_dict.items()))
+
     pos.petugas = pos.petugas_set[0].nama if pos.petugas_set else '-'
     graph_json = pio.to_json(fig)
     ctx = {
@@ -307,6 +327,7 @@ def show_month(id, tahun, bulan):
         'graph': graph_json,
         'mean_table': table_data,
         'sibling_pos': sibling_pos,
+        'days': days_sorted,
     }
     pos.punya_debit = LengkungDebit.select().where(LengkungDebit.pos==pos).exists()
     return render_template('pda/month.html', ctx=ctx)

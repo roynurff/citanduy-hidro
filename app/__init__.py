@@ -422,13 +422,15 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                                 row = [r.sampling.strftime('%d')]
                                 tma_now = 0
                                 num_data = 0
-                                for k, v in r._24jam().items():
+                                jam_data = r._24jam()
+                                # Pastikan semua 24 jam ada, yang kosong diisi None
+                                for jam in range(24):
+                                    v = jam_data.get(jam, {})
                                     wlevel = v.get('wlevel')
                                     if wlevel is not None:
                                         tma_now += float(wlevel)
-                                        num_data += 1 
-                                    # row.append(round(v.get('wlevel') * 0.01, 2))
-                                    row.append(round(float(wlevel) * 0.01, 2) if wlevel is not None else None) #fix error download pda
+                                        num_data += 1
+                                    row.append(round(float(wlevel) * 0.01, 2) if wlevel is not None else None)
                                 rerata = round((tma_now / num_data if num_data > 0 else 0), 2)
                                 row.append(round(rerata, 1))
                                 telemetri.append(row)

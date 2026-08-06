@@ -423,14 +423,16 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                                 tma_now = 0
                                 num_data = 0
                                 jam_data = r._24jam()
-                                # Pastikan semua 24 jam ada, yang kosong diisi None
-                                for jam in range(24):
-                                    v = jam_data.get(jam, {})
+                                for key in sorted(jam_data.keys()):  # iterasi pakai key asli dari _24jam()
+                                    v = jam_data[key]
                                     wlevel = v.get('wlevel')
-                                    if wlevel is not None:
+                                    if wlevel is not None and wlevel != 0.0:
                                         tma_now += float(wlevel)
                                         num_data += 1
                                     row.append(round(float(wlevel) * 0.01, 2) if wlevel is not None else None)
+                                # padding kalau jam kurang dari 24
+                                while len(row) < 25:  # 1 tanggal + 24 jam
+                                    row.append(None)
                                 rerata = round((tma_now / num_data if num_data > 0 else 0), 2)
                                 row.append(round(rerata, 1))
                                 telemetri.append(row)

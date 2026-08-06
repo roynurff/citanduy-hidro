@@ -59,7 +59,7 @@
             {% for k, v in ctx.pos.telemetri.items() %}
             <tr>
                 <td>{{ k[11:13] }}:00</td>
-                <td class="text-end">{{ v.wlevel|round(1) if v.num > 0 else '-' }}</td>
+                <td class="text-end">{{ v.wlevel|float(0)|round(1) if v.num > 0 else '-' }}</td>
                 <td class="text-end">{{ v.num }}</td>
             </tr>
             {% endfor %}

@@ -625,7 +625,7 @@
         ];
 
         // Taruh bareng MOCK_WLEVEL di atas SidebarControl
-        const MOCK_RAIN = { items: [
+        const MOCK_RAIN_API = { items: [
             { pos: { nama: 'PCH Wanareja', latlon: '-7.35500,108.71400' },
             telemetri: { rain24: 45, rain: {
                 '2026-06-24T07:00:00': { rain: 8.0 },
@@ -690,13 +690,15 @@
         Promise.all([
             fetch('/static/js/Riwayat_Banjir_fixed.geojson').then(r => r.json()),
             fetch('/static/js/pda_pch_mapping.json').then(r => r.json()),
-            // IS_DEV ? Promise.resolve(MOCK_RAIN) :
+            // IS_DEV ? Promise.resolve(MOCK_RAIN_API) : 
             fetch('/api/rain').then(r => r.json()),
             fetch('/static/PolygonThiessenUpdateNov2025.json.geojson').then(r => r.json())
-        ]).then(([banjir, mapping, rain]) => {
+        ]).then(([banjir, mapping, rain, thiessen]) => {
             riwayatBanjirData = banjir;
             pdaPchMapping = mapping;
+            // console.log('rain raw:', rain); 
             rainApiData = rain.items || rain;
+            // console.log('rainApiData:', rainApiData); 
             thiessenData = thiessen;
             sidebarControl.updateScreen();
         }).catch(e => console.error('Gagal load data awal:', e));
@@ -836,6 +838,7 @@
             const chLookup = {};
             rainApiData.forEach(item => {
                 const jamBerturut = hitungJamBerturut(item.telemetri?.rain);
+                // console.log(item.pos.nama, 'jam:', jamBerturut);
                 if (jamBerturut >= 1) {
                     chLookup[item.pos.nama] = {
                         jamBerturut,
@@ -844,6 +847,8 @@
                     };
                 }
             });
+            // console.log('chLookup:', chLookup); 
+            // console.log('matching:', thiessenData.features.filter(f => chLookup[f.properties.Name]).length);
 
             if (!Object.keys(chLookup).length) return;
 
@@ -962,13 +967,15 @@
                 return this.simulasi === true;
             },
             updateScreen: function() {
-                // Update screen logic here
-                console.log('Updating screen...');
+                // if (IS_DEV) {
+                //     rainApiData = MOCK_RAIN_API.items;
+                //     updateThiessenRain();
+                // } else {
                 fetch('/api/rain')
                     .then(r => r.json())
                     .then(data => {
                         rainApiData = data.items || data;
-                        updateThiessenRain(); // update thiessen setelah data fresh
+                        updateThiessenRain();
                     });
                 this.updateRain();
                 this.updateWlevel();
@@ -986,7 +993,7 @@
                 // fetch /api/rain and update the map
                 fetch('/ews?rain=1')
                     .then(r => {
-                        if (IS_DEV && !r.ok) return Promise.resolve(MOCK_RAIN);
+                        if (IS_DEV && !r.ok) return Promise.resolve(MOCK_RAIN_API);
                         return r.json();
                     })
                     .then(data => {

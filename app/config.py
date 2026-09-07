@@ -12,6 +12,9 @@ SOURCE_C = environ.get('LUWES_URL')
 SOURCE_C2 = environ.get('LUWES2_URL')
 SDATELEMETRY_POS_EXCLUDES = environ.get('SDATELEMETRY_POS_EXCLUDES')
 
+FONNTE_TOKEN = environ.get('6TVhkef2MxtPoD78BtkS')
+WA_TO = environ.get('WA_TO')
+
 GTAG = environ.get('GOOGLE_TAG', 'G-XXXXXXXXXX')
 BOT_TOKEN = environ.get('BOT_TOKEN')
 CTY_OFFICE_ID = environ.get('CTY_KANTOR_ID')

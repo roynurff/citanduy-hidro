@@ -1,6 +1,6 @@
 import requests
 from app.models import RDaily, Pos, ManualDaily, FetchLog, LuwesPos, OPos
-from app.config import SOURCE_A, SOURCE_B, SOURCE_C, BOT_TOKEN, CTY_OFFICE_ID, SOURCE_C2
+from app.config import SOURCE_A, SOURCE_B, SOURCE_C, BOT_TOKEN, CTY_OFFICE_ID, SOURCE_C2, FONNTE_TOKEN, WA_TO
 from app import get_warning_wlevel
 import click
 import datetime
@@ -8,12 +8,15 @@ import json
 
 def send_wa(msg: str, target: str = None):
     import requests as req
-    payload = {'message': msg}
-    if target:
-        payload['target'] = target
+    TOKEN = '6TVhkef2MxtPoD78BtkS'
+    TO = target or '120363411681484267@g.us'
     try:
-        resp = req.post('http://127.0.0.1:3001/send', 
-                       json=payload, timeout=10)
+        resp = req.post('https://api.fonnte.com/send',
+            headers={'Authorization': TOKEN},
+            data={
+                'target': TO,
+                'message': msg,
+            }, timeout=10)
         return resp.status_code == 200
     except Exception as e:
         print(f'WA send error: {e}')

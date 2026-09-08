@@ -14,6 +14,7 @@ SDATELEMETRY_POS_EXCLUDES = environ.get('SDATELEMETRY_POS_EXCLUDES')
 
 FONNTE_TOKEN = environ.get('6TVhkef2MxtPoD78BtkS')
 WA_TO = environ.get('WA_TO')
+EWS_SKIP_POS = [x.strip() for x in environ.get('EWS_SKIP_POS', '').split(',') if x.strip()]
 
 GTAG = environ.get('GOOGLE_TAG', 'G-XXXXXXXXXX')
 BOT_TOKEN = environ.get('BOT_TOKEN')

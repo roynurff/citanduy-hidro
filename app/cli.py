@@ -1,6 +1,6 @@
 import requests
 from app.models import RDaily, Pos, ManualDaily, FetchLog, LuwesPos, OPos
-from app.config import SOURCE_A, SOURCE_B, SOURCE_C, BOT_TOKEN, CTY_OFFICE_ID, SOURCE_C2, FONNTE_TOKEN, WA_TO
+from app.config import SOURCE_A, SOURCE_B, SOURCE_C, BOT_TOKEN, CTY_OFFICE_ID, SOURCE_C2, FONNTE_TOKEN, WA_TO, EWS_SKIP_POS
 from app import get_warning_wlevel
 import click
 import datetime
@@ -358,7 +358,7 @@ def register(app):
 
     @app.cli.command('ews-wlevel')
     def ews_wlevel(now=datetime.datetime.now()):
-        warning_list = [w for w in get_warning_wlevel() if w['status'] != 'normal']
+        warning_list = [w for w in get_warning_wlevel() if w['status'] != 'normal' and w['pos']['nama'] not in EWS_SKIP_POS]
         if not warning_list:
             click.echo('Tidak ada TMA siaga.')
             return
@@ -389,8 +389,7 @@ def register(app):
             now.strftime('%d %b %Y jam %H:%M'))
         for i, item in enumerate(warning_list):
             pos = item['pos']
-            latest = item['telemetri']['latest']
-            wlevel = item['wlevel'][-1][1] if isinstance(item.get('wlevel'), list) else latest['wlevel']
+            wlevel = item['wlevel'][-1][1]
             sh, sk, sm = pos.get('sh'), pos.get('sk'), pos.get('sm')
             if sm and wlevel >= sm:       status = 'SIAGA MERAH'
             elif sk and wlevel >= sk:     status = 'SIAGA KUNING'

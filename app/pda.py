@@ -235,7 +235,7 @@ def show_month(id, tahun, bulan):
     rds = RDaily.select(RDaily.raw, RDaily.source).where(RDaily.pos_id==pos.id,
                                 RDaily.sampling.year==sampling.year,
                                 RDaily.sampling.month==sampling.month).order_by(
-                                    RDaily.sampling)
+                                    RDaily.sampling.desc())
     select_manual = ManualDaily.select(ManualDaily.sampling, ManualDaily.tma).where(ManualDaily.pos_id==pos.id,
                                          ManualDaily.sampling.year==sampling.year,
                                          ManualDaily.sampling.month==sampling.month).order_by(

@@ -40,7 +40,8 @@ def sensor_show(uuid):
     return jsonify(model_to_dict(inc))
 
 @bp.route('/wlevel')
-@limiter.limit("1 per 5 minute")
+@limiter.limit("15 per minute")
+@cache.cached(timeout=300) # Cache for 5 minutes saving
 def wlevel():
     '''{pos: manual: telemetri: }'''
     get_newest = not request.args.get('s', None)
@@ -285,7 +286,7 @@ def _format_pos_data(p):
     }
     
 @bp.route('/rain')
-@limiter.limit("5 per minute")
+@limiter.limit("15 per minute")
 @cache.cached(timeout=300) # Cache for 5 minutes saving
 def rain():
     get_newest = request.args.get('s', None)

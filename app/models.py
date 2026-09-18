@@ -165,7 +165,7 @@ class Incoming(BaseModel):
             
             rec_sampling = r['date_time'].replace(' ', 'T')
             this_key = r['name'] + '_' + rec_sampling[0:10]
-            new_rec = {rec_sampling: {field: round(float(r['value']), 1)}}
+            new_rec = {rec_sampling: {field: round(float(r['value']), 2)}}
             if this_key in all_rec:
                 existing_rec = all_rec[this_key]
                 if rec_sampling in existing_rec:

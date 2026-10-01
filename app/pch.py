@@ -119,10 +119,14 @@ def show_month(id, tahun, bulan):
 
 def _initialize_days_dict(sampling_date, next_sampling, today):
     """Initialize the days dictionary with proper date range."""
-    if next_sampling and next_sampling < today:
+     if next_sampling and next_sampling <= today:
         num_days = (next_sampling - sampling_date).days
-    else:
+    elif sampling_date.month == today.month and sampling_date.year == today.year:
         num_days = today.day
+    else:
+        # Bulan lampau — ambil jumlah hari penuh bulan itu
+        import calendar
+        num_days = calendar.monthrange(sampling_date.year, sampling_date.month)[1]
     
     return {
         day: {'count': 0, 'rain': 0, 'mrain': 0}

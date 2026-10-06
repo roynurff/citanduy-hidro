@@ -74,6 +74,7 @@
 // Form TMA
 function formTma(id, jam, tma) {
     return {
+        editing: false,
         cnt: tma === undefined || tma === null ? '...' : tma,
         prevVal: tma,
         formData: { tma: tma ?? '', fetch: true, jam: jam,
@@ -96,6 +97,7 @@ function formTma(id, jam, tma) {
                 body: JSON.stringify({ ...this.formData, tma: val }),
             }).then(r => r.json()).then(y => {
                 if (y.ok) {
+                    this.editing = false;
                     this.prevVal = val;
                     this.cnt = val;
                 } else {
@@ -105,12 +107,17 @@ function formTma(id, jam, tma) {
             }).catch(e => { console.log(e); this.closeForm(); });
         },
         openForm() {
+            if (this.editing) return;
+            this.editing = true;
+            this.formData.tma = this.prevVal ?? '';
             this.cnt = `<form @submit.prevent='submitForm'>
                 <input type='hidden' name='jam' x-model='formData.jam'>
                 <input type='text' size='3' style='text-align:right;' @keypress='validateForm' name='tma' autofocus x-model='formData.tma'>
                 </form>`;
         },
         closeForm() {
+            if (!this.editing) return;
+            this.editing = false;
             this.cnt = (this.prevVal === undefined || this.prevVal === null) ? '...' : this.prevVal;
         }
     }

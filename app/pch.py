@@ -119,7 +119,7 @@ def show_month(id, tahun, bulan):
 
 def _initialize_days_dict(sampling_date, next_sampling, today):
     """Initialize the days dictionary with proper date range."""
-     if next_sampling and next_sampling <= today:
+    if next_sampling and next_sampling <= today:
         num_days = (next_sampling - sampling_date).days
     elif sampling_date.month == today.month and sampling_date.year == today.year:
         num_days = today.day

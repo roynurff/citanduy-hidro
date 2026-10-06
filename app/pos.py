@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 import os
 import json
 import datetime
-from peewee import DoesNotExist, fn
+from peewee import DoesNotExist, fn, IntegrityError
 
 from app.models import Pos, ManualDaily, PosMap, OPos, LengkungDebit, LuwesPos, HasilUjiKualitasAir, LokasiMaster, ParameterDetail, PARAMETER_LIST
 from app import get_sampling
@@ -645,6 +645,29 @@ def show_manual(pos_id, tahun=datetime.date.today().year, bulan=datetime.date.to
     }
     return render_template('pos/manual/show.html', ctx=ctx)
 
+def save_tma(pos, sampling, jam, val, username):
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    jam = str(jam)
+    for _ in range(2):
+        md = ManualDaily.select().where(
+            ManualDaily.pos == pos,
+            ManualDaily.sampling == sampling).first()
+        if md:
+            tma = json.loads(md.tma or '{}')
+            tma[jam] = val
+            tma.setdefault('cdate_' + jam, now)
+            md.tma = json.dumps(tma)
+            md.save()
+            return tma
+        tma = {jam: val, 'cdate_' + jam: now}
+        try:
+            with ManualDaily._meta.database.atomic():
+                ManualDaily.create(pos=pos, sampling=sampling, tma=json.dumps(tma), username=username)
+            return tma
+        except IntegrityError:
+            continue
+    raise
+
 @bp.route('/<int:id>/manual', methods=['POST'])
 @login_required
 def upsert_manual(id):
@@ -670,30 +693,11 @@ def upsert_manual(id):
     elif pos.tipe == '2':
         form = TmaForm()
         if form.validate_on_submit():
-            md = ManualDaily.select().where(
-                ManualDaily.pos==pos, 
-                ManualDaily.sampling==form.sampling.data).first()
-            if md:
-                tma = json.loads(md.tma)
-                if 'cdate_'+str(form.jam.data) in tma:
-                    tma.update({str(form.jam.data): form.tma.data})
-                else:
-                    tma.update({str(form.jam.data): form.tma.data, 
-                                'cdate_'+str(form.jam.data): datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
-                md.tma = json.dumps(tma)
-                md.save()
-                ret = {'ok': True, 'tma': tma,
-                    'sampling': form.sampling.data,
-                    'pos': pos.id,
-                    'username': current_user.username}
-            else:
-                tma = json.dumps({str(form.jam.data): form.tma.data, 
-                                  'cdate_'+str(form.jam.data): datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
-                ret = {'ok': True, 'tma': tma,
-                    'sampling': form.sampling.data,
-                    'pos': pos.id,
-                    'username': current_user.username}
-                md = ManualDaily.create(**ret)
+            tma = save_tma(pos, form.sampling.data, form.jam.data, form.tma.data, current_user.username)
+            ret = {'ok': True, 'tma': tma,
+                   'sampling': form.sampling.data,
+                   'pos': pos.id,
+                   'username': current_user.username}
         else:
             print(form.errors)
             ret = {'ok': False, 'error': form.errors}

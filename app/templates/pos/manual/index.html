@@ -58,9 +58,30 @@
                 {% for p in ctx.pda %}
                     <tr>
                         <td>{{ p.nama }} <span class="float-end font-monospace" style="font-size:8pt;">{{ p.petugas or '<b class="text-danger">kosong</b>'|safe}}</span></td>
-                        <td class="text-end" x-data="formTma({{p.id}}, '07', {{ (p.tma['07'] if p.tma and p.tma.get('07') not in (none, '') else 'undefined')|safe }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-                        <td class="text-end" x-data="formTma({{p.id}}, '12', {{ (p.tma['12'] if p.tma and p.tma.get('12') not in (none, '') else 'undefined')|safe }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-                        <td class="text-end" x-data="formTma({{p.id}}, '17', {{ (p.tma['17'] if p.tma and p.tma.get('17') not in (none, '') else 'undefined')|safe }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
+                        <td class="text-end" x-data="formTma({{p.id}}, '07', {{ (p.tma['07'] if p.tma and p.tma.get('07') not in (none, '') else 'undefined')|safe }})"
+                            @click="openForm()" @click.outside="closeForm()">
+                            <span x-show="!editing" x-text="prevVal ?? '...'"></span>
+                            <form x-show="editing" @submit.prevent="submitForm()">
+                                <input type="text" size="3" style="text-align:right;" x-ref="inp"
+                                    x-model="formData.tma" @keypress="validateForm">
+                            </form>
+                        </td>
+                        <td class="text-end" x-data="formTma({{p.id}}, '12', {{ (p.tma['12'] if p.tma and p.tma.get('12') not in (none, '') else 'undefined')|safe }})"
+                            @click="openForm()" @click.outside="closeForm()">
+                            <span x-show="!editing" x-text="prevVal ?? '...'"></span>
+                            <form x-show="editing" @submit.prevent="submitForm()">
+                                <input type="text" size="3" style="text-align:right;" x-ref="inp"
+                                    x-model="formData.tma" @keypress="validateForm">
+                            </form>
+                        </td>
+                        <td class="text-end" x-data="formTma({{p.id}}, '17', {{ (p.tma['17'] if p.tma and p.tma.get('17') not in (none, '') else 'undefined')|safe }})"
+                            @click="openForm()" @click.outside="closeForm()">
+                            <span x-show="!editing" x-text="prevVal ?? '...'"></span>
+                            <form x-show="editing" @submit.prevent="submitForm()">
+                                <input type="text" size="3" style="text-align:right;" x-ref="inp"
+                                    x-model="formData.tma" @keypress="validateForm">
+                            </form>
+                        </td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -75,7 +96,6 @@
 function formTma(id, jam, tma) {
     return {
         editing: false,
-        cnt: tma === undefined || tma === null ? '...' : tma,
         prevVal: tma,
         formData: { tma: tma ?? '', fetch: true, jam: jam,
             sampling: '{{ ctx.sampling.strftime('%Y-%m-%d')}}' },
@@ -83,6 +103,15 @@ function formTma(id, jam, tma) {
             if (e.key === 'Enter') return;
             const next = String(this.formData.tma ?? '') + e.key;
             if (!/^-?\d*\.?\d{0,1}$/.test(next)) e.preventDefault();
+        },
+        openForm() {
+            if (this.editing) return;
+            this.editing = true;
+            this.formData.tma = this.prevVal ?? '';
+            this.$nextTick(() => this.$refs.inp.focus());
+        },
+        closeForm() {
+            this.editing = false;
         },
         submitForm() {
             const val = String(this.formData.tma ?? '').trim();
@@ -96,29 +125,9 @@ function formTma(id, jam, tma) {
                 },
                 body: JSON.stringify({ ...this.formData, tma: val }),
             }).then(r => r.json()).then(y => {
-                if (y.ok) {
-                    this.editing = false;
-                    this.prevVal = val;
-                    this.cnt = val;
-                } else {
-                    this.formData.tma = this.prevVal ?? '';
-                    this.closeForm();
-                }
-            }).catch(e => { console.log(e); this.closeForm(); });
-        },
-        openForm() {
-            if (this.editing) return;
-            this.editing = true;
-            this.formData.tma = this.prevVal ?? '';
-            this.cnt = `<form @submit.prevent='submitForm'>
-                <input type='hidden' name='jam' x-model='formData.jam'>
-                <input type='text' size='3' style='text-align:right;' @keypress='validateForm' name='tma' autofocus x-model='formData.tma'>
-                </form>`;
-        },
-        closeForm() {
-            if (!this.editing) return;
-            this.editing = false;
-            this.cnt = (this.prevVal === undefined || this.prevVal === null) ? '...' : this.prevVal;
+                if (y.ok) this.prevVal = val;
+                this.editing = false;
+            }).catch(e => { console.log(e); this.editing = false; });
         }
     }
 }

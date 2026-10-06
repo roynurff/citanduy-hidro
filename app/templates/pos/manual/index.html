@@ -58,9 +58,9 @@
                 {% for p in ctx.pda %}
                     <tr>
                         <td>{{ p.nama }} <span class="float-end font-monospace" style="font-size:8pt;">{{ p.petugas or '<b class="text-danger">kosong</b>'|safe}}</span></td>
-                        <td class="text-end" x-data="formTma({{p.id}}, '07', {% if p.tma %}{{ p.tma['07'] }}{% endif %})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-                        <td class="text-end" x-data="formTma({{p.id}}, '12', {% if p.tma %}{{ p.tma['12'] }}{% endif %})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-                        <td class="text-end" x-data="formTma({{p.id}}, '17', {% if p.tma %}{{ p.tma['17'] }}{% endif %})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
+                        <td class="text-end" x-data="formTma({{p.id}}, '07', {{ (p.tma['07'] if p.tma and p.tma.get('07') not in (none, '') else 'undefined')|safe }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
+                        <td class="text-end" x-data="formTma({{p.id}}, '12', {{ (p.tma['12'] if p.tma and p.tma.get('12') not in (none, '') else 'undefined')|safe }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
+                        <td class="text-end" x-data="formTma({{p.id}}, '17', {{ (p.tma['17'] if p.tma and p.tma.get('17') not in (none, '') else 'undefined')|safe }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -74,35 +74,35 @@
 // Form TMA
 function formTma(id, jam, tma) {
     return {
-        cnt: tma === undefined ? '...': tma,
+        cnt: tma === undefined || tma === null ? '...' : tma,
         prevVal: tma,
-        formData: {
-            tma,
-            fetch: true,
-            jam: jam,
-            sampling: '{{ ctx.sampling.strftime('%Y-%m-%d')}}'
-        },
+        formData: { tma: tma ?? '', fetch: true, jam: jam,
+            sampling: '{{ ctx.sampling.strftime('%Y-%m-%d')}}' },
         validateForm(e) {
-            var re = /^-?\d*\.?\d{0,1}$/;
-            console.log(e.key);
-            if (this.formData.tma.match(re) === null) {
-                e.preventDefault();
-            }
-            /*
-            if (e.key == '.') {
-                if (this.formData.tma === undefined) {
-                    e.preventDefault();
+            if (e.key === 'Enter') return;
+            const next = String(this.formData.tma ?? '') + e.key;
+            if (!/^-?\d*\.?\d{0,1}$/.test(next)) e.preventDefault();
+        },
+        submitForm() {
+            const val = String(this.formData.tma ?? '').trim();
+            if (val === '') return this.closeForm();
+            fetch('/pos/' + id + '/manual', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}',
+                    Accept: 'application/json'
+                },
+                body: JSON.stringify({ ...this.formData, tma: val }),
+            }).then(r => r.json()).then(y => {
+                if (y.ok) {
+                    this.prevVal = val;
+                    this.cnt = val;
+                } else {
+                    this.formData.tma = this.prevVal ?? '';
+                    this.closeForm();
                 }
-            } else if (e.key == '-') {
-                console.log('minus');
-            } else if (e.key == 'Enter') {
-                return true
-            } else if (e.key == 'Escape') {
-                this.closeForm();
-            } else if (e.key < '0' || e.key > '9') {
-                e.preventDefault();
-            }
-                */
+            }).catch(e => { console.log(e); this.closeForm(); });
         },
         openForm() {
             this.cnt = `<form @submit.prevent='submitForm'>
@@ -110,37 +110,9 @@ function formTma(id, jam, tma) {
                 <input type='text' size='3' style='text-align:right;' @keypress='validateForm' name='tma' autofocus x-model='formData.tma'>
                 </form>`;
         },
-        submitForm() {
-            if (this.formData.tma===undefined) {
-                return false;
-            }
-            fetch('/pos/'+id+'/manual', {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": "{{ csrf_token() }}",
-                    Accept: "application/json"
-                },
-                body: JSON.stringify(this.formData),
-            }).then((e) => {
-                return e.json()
-            }).then(y => {
-                if (! y.ok) {
-                    this.formData.tma = this.curVal;
-                    this.cnt = this.curVal;
-                }
-                this.cnt = this.formData.tma;
-                this.prevVal = this.formData.tma;
-
-            }).catch((e) => {
-                console.log('error');
-                console.log(e);
-            });
-        },
         closeForm() {
-            this.cnt = this.prevVal === undefined ? '...': this.prevVal;
+            this.cnt = (this.prevVal === undefined || this.prevVal === null) ? '...' : this.prevVal;
         }
-
     }
 }
 

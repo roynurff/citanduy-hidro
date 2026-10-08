@@ -608,20 +608,21 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
                                                 ManualDaily.pos_id==pos.id).order_by(
                                                     ManualDaily.sampling)
                     for m in mds:
-                        tmas = json.loads(m.tma)
-                        tma = {'07': None, '12': None, '17': None}
-                        for j in ('07', '12', '17'):
+                        tmas = json.loads(m.tma or '{}')
+                        tma = {j: tmas.get(j) for j in ('07', '12', '17')}
+                        nilai = []
+                        for t in tma.values():
                             try:
-                                tma[j] = tmas[j]
-                            except KeyError:
+                                nilai.append(float(t))
+                            except (TypeError, ValueError):
                                 pass
-                        filled_tma = [t for t in tma.values() if t]
-                        tmarerata = sum(filled_tma)/ len(filled_tma)
-                        csv_data += '{}, {}, {}, {}, {:.1f}\n'.format(m.sampling, 
-                                                                tma['07'], 
-                                                                tma['12'],
-                                                                tma['17'],
-                                                                tmarerata)
+                        rata = '{:.1f}'.format(sum(nilai) / len(nilai)) if nilai else ''
+                        csv_data += '{}, {}, {}, {}, {}\n'.format(
+                            m.sampling,
+                            '' if tma['07'] is None else tma['07'],
+                            '' if tma['12'] is None else tma['12'],
+                            '' if tma['17'] is None else tma['17'],
+                            rata)
 
                 response = Response(csv_data, content_type="text/csv")
                 return response

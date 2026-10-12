@@ -184,9 +184,13 @@ def show(id):
     manual_first = ManualDaily.select(fn.Min(ManualDaily.sampling).alias('sampling')).where(ManualDaily.pos==pos).first()
     manual_max = ManualDaily.select(fn.Max(ManualDaily.ch).alias('ch')).where(ManualDaily.pos==pos).scalar()
     
-    query_max = (ManualDaily
-             .select(ManualDaily.sampling, ManualDaily.ch)
-             .where(ManualDaily.ch == manual_max)).first()
+    query_max = None
+    if manual_max is not None:
+        query_max = (ManualDaily
+                     .select(ManualDaily.sampling, ManualDaily.ch)
+                     .where(ManualDaily.pos == pos, ManualDaily.ch == manual_max)
+                     .order_by(ManualDaily.sampling.desc())
+                     .first())
     manual_today = ManualDaily.select(ManualDaily.ch).where(ManualDaily.pos==pos, ManualDaily.sampling==sampling.strftime('%Y-%m-%d')).first()
     
     man_max = query_max if query_max is not None else SimpleNamespace(ch=0, sampling=None)

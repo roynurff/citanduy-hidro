@@ -60,15 +60,17 @@
         {% for tanggal, d in ctx.list_data.items()|reverse %}
         <tr>
             <td>{{ tanggal }} {{ ctx.sampling.strftime('%b') }}</td>
-            {% if d.get('tma') %}
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '07', {{ d.get('tma').get('07') if d.get('tma').get('07') is not none else 'undefined' }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('07') or '' }}</td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '12', {{ d.get('tma').get('12') if d.get('tma').get('12') is not none else 'undefined' }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('12') or '' }}</td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '17', {{ d.get('tma').get('17') if d.get('tma').get('17') is not none else 'undefined' }})" x-html="cnt" @click="openForm()" @click.outside="closeForm()">{{ d.get('tma').get('17') or '' }}</td>
-            {% else %}
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '07', undefined)" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '12', undefined)" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '17', undefined)" x-html="cnt" @click="openForm()" @click.outside="closeForm()"></td>
-            {% endif %}  
+            {% set tma = d.get('tma') or {} %}
+            {% for jam in ('07', '12', '17') %}
+            <td class="text-end" x-data="formTma({{ctx.pos.id}}, '{{tanggal}}', '{{jam}}', {{ tma.get(jam) if tma.get(jam) not in (none, '') else 'undefined' }})"
+                @click="openForm()" @click.outside="closeForm()">
+                <span x-show="!editing" x-text="prevVal ?? '...'"></span>
+                <form x-show="editing" style="display:none" @submit.prevent="submitForm()">
+                    <input type="text" size="3" style="text-align:right;" x-ref="inp"
+                           x-model="formData.tma" @beforeinput="validateForm">
+                </form>
+            </td>
+            {% endfor %}
         </tr>
         {% endfor %}
     </tbody>
@@ -78,70 +80,55 @@
 
 <script>
     // Form TMA
-    function formTma(id, tgl, jam, tma) {
+        function formTma(id, tgl, jam, tma) {
         return {
-            cnt: tma === undefined ? '...': tma,
+            editing: false,
             prevVal: tma,
             formData: {
-                tma,
+                tma: tma ?? '',
                 jam: jam,
                 fetch: true,
-                sampling: '{{ ctx.sampling.strftime('%Y-%m-')}}'.concat(tgl) 
+                sampling: '{{ ctx.sampling.strftime('%Y-%m-')}}'.concat(tgl)
             },
             validateForm(e) {
-                if (e.key == '.') {
-                    if (this.formData.tma === undefined) {
-                        e.preventDefault();
-                    }
-                } else if (e.key == 'Enter') {
-                    return true
-                } else if (e.key == 'Escape') {
-                    this.closeForm();
-                } else if (e.key < '0' || e.key > '9') {
-                    e.preventDefault();
-                }
+                if (e.inputType && !e.inputType.startsWith('insert')) return;
+                const el = e.target;
+                const next = el.value.slice(0, el.selectionStart) + (e.data ?? '') + el.value.slice(el.selectionEnd);
+                if (!/^-?\d*\.?\d{0,1}$/.test(next)) e.preventDefault();
             },
             openForm() {
-                this.cnt = `<form @submit.prevent='submitForm'>
-                    <input type='hidden' name='jam' x-model='formData.jam'>
-                    <input type='text' @keypress='validateForm' name='tma' size='3' autofocus style='text-align:right' x-model='formData.tma'>
-                    </form>`;
-            },
-            submitForm() {
-                if (this.formData.tma===undefined) {
-                    return false;
-                }
-                fetch('/pos/'+id+'/manual', {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRFToken": "{{ csrf_token() }}",
-                        Accept: "application/json"
-                    },
-                    body: JSON.stringify(this.formData),
-                }).then((e) => {
-                    return e.json();
-                }).then(y => {
-                    if (! y.ok) {
-                        if (this.curVal === undefined) {
-                            this.formData.tma = undefined;
-                            this.cnt = '...';
-                        } else {
-                            this.formData.tma = this.curVal;
-                            this.cnt = this.curVal;
-                        }
-                    }
-                    this.cnt = this.formData.tma;
-                    this.prevVal = this.formData.tma;
-                }).catch((e) => {
-                    console.log('error');
-                    console.log(e);
-                });
+                if (this.editing) return;
+                this.editing = true;
+                this.formData.tma = this.prevVal ?? '';
+                this.$nextTick(() => this.$refs.inp.focus());
             },
             closeForm() {
-                this.cnt = this.prevVal === undefined ? '...': this.prevVal;
+                this.editing = false;
+            },
+            submitForm() {
+                const val = String(this.formData.tma ?? '').trim();
+                if (!/^-?\d+(\.\d)?$/.test(val)) return this.closeForm();
+                fetch('/pos/' + id + '/manual', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}',
+                        Accept: 'application/json'
+                    },
+                    body: JSON.stringify({ ...this.formData, tma: val }),
+                }).then(r => r.json()).then(y => {
+                    if (y.ok) {
+                        this.prevVal = val;
+                    } else {
+                        alert('Gagal menyimpan, coba lagi.');
+                    }
+                    this.editing = false;
+                }).catch(e => {
+                    console.log(e);
+                    alert('Gagal menyimpan, coba lagi.');
+                    this.editing = false;
+                });
             }
-
         }
     }
 

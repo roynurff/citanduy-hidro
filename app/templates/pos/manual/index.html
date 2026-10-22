@@ -63,7 +63,7 @@
                             <span x-show="!editing" x-text="prevVal ?? '...'"></span>
                             <form x-show="editing" @submit.prevent="submitForm()">
                                 <input type="text" size="3" style="text-align:right;" x-ref="inp"
-                                    x-model="formData.tma" @keypress="validateForm">
+                                    x-model="formData.tma" @beforeinput="validateForm">
                             </form>
                         </td>
                         <td class="text-end" x-data="formTma({{p.id}}, '12', {{ (p.tma['12'] if p.tma and p.tma.get('12') not in (none, '') else 'undefined')|safe }})"
@@ -71,7 +71,7 @@
                             <span x-show="!editing" x-text="prevVal ?? '...'"></span>
                             <form x-show="editing" @submit.prevent="submitForm()">
                                 <input type="text" size="3" style="text-align:right;" x-ref="inp"
-                                    x-model="formData.tma" @keypress="validateForm">
+                                    x-model="formData.tma" @beforeinput="validateForm">
                             </form>
                         </td>
                         <td class="text-end" x-data="formTma({{p.id}}, '17', {{ (p.tma['17'] if p.tma and p.tma.get('17') not in (none, '') else 'undefined')|safe }})"
@@ -79,7 +79,7 @@
                             <span x-show="!editing" x-text="prevVal ?? '...'"></span>
                             <form x-show="editing" @submit.prevent="submitForm()">
                                 <input type="text" size="3" style="text-align:right;" x-ref="inp"
-                                    x-model="formData.tma" @keypress="validateForm">
+                                    x-model="formData.tma" @beforeinput="validateForm">
                             </form>
                         </td>
                     </tr>
@@ -100,8 +100,9 @@ function formTma(id, jam, tma) {
         formData: { tma: tma ?? '', fetch: true, jam: jam,
             sampling: '{{ ctx.sampling.strftime('%Y-%m-%d')}}' },
         validateForm(e) {
-            if (e.key === 'Enter') return;
-            const next = String(this.formData.tma ?? '') + e.key;
+            if (e.inputType && !e.inputType.startsWith('insert')) return;
+            const el = e.target;
+            const next = el.value.slice(0, el.selectionStart) + (e.data ?? '') + el.value.slice(el.selectionEnd);
             if (!/^-?\d*\.?\d{0,1}$/.test(next)) e.preventDefault();
         },
         openForm() {
@@ -115,7 +116,7 @@ function formTma(id, jam, tma) {
         },
         submitForm() {
             const val = String(this.formData.tma ?? '').trim();
-            if (val === '') return this.closeForm();
+            if (!/^-?\d+(\.\d)?$/.test(val)) return this.closeForm();
             fetch('/pos/' + id + '/manual', {
                 method: 'POST',
                 headers: {

@@ -811,17 +811,21 @@
         function hitungJamBerturut(rainPerJam, threshold = 10) {
             if (!rainPerJam) return 0;
             const entries = Object.entries(rainPerJam)
-                .sort((a, b) => b[0].localeCompare(a[0])); // urutkan terbaru duluan
-            
+                .filter(([, val]) => val.count === undefined || val.count > 0) // buang jam kosong/belum terjadi
+                .sort((a, b) => b[0].localeCompare(a[0])); // terbaru duluan
+
             let jamBerturut = 0;
-            for (const [, val] of entries) {
+            entries.forEach(([, val], i) => {
+                if (jamBerturut < 0) return; // sudah putus
                 if (val.rain >= threshold) {
                     jamBerturut++;
+                } else if (i === 0) {
+                    // jam berjalan (belum penuh), jangan putus dulu
                 } else {
-                    break; // reset kalau ada jam yang di bawah threshold
+                    jamBerturut = -jamBerturut - 1; // tandai putus
                 }
-            }
-            return jamBerturut;
+            });
+            return jamBerturut < 0 ? -jamBerturut - 1 : jamBerturut;
         }
 
         // Update polygon thiessen berdasarkan CH
@@ -847,8 +851,8 @@
                     };
                 }
             });
-            // console.log('chLookup:', chLookup); 
-            // console.log('matching:', thiessenData.features.filter(f => chLookup[f.properties.Name]).length);
+            console.log('chLookup:', chLookup); 
+            console.log('matching:', thiessenData.features.filter(f => chLookup[f.properties.Name]).length);
 
             if (!Object.keys(chLookup).length) return;
 
@@ -1037,7 +1041,7 @@
                                         </span>
                                     </div>
                                     <div style="font-size:11px; letter-spacing:0.1em; color:#888;">CURAH HUJAN
-                                        <div style="font-size:3em; color:#444;">${item.rain.toFixed(1)} mm selama ${item.total_seconds}</div>
+                                        <div style="font-size:3em; color:#444;">${item.rain.toFixed(1)} mm selama ${Math.round(item.duration / 60)} menit</div>
                                     </div>
                                     <div style="font-size:0.95em; color:#555;">
                                         Last Sampling:<br>

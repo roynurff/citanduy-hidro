@@ -910,6 +910,38 @@
             console.log(`Thiessen rain: ${Object.keys(thiessenLayers).length} polygon aktif`);
         }
 
+        function updateThiessenFromAlert(alerts) {
+            Object.keys(thiessenLayers).forEach(k => {
+                map.removeLayer(thiessenLayers[k]);
+                delete thiessenLayers[k];
+            });
+            if (!thiessenData) return;
+
+            const lookup = {};
+            alerts.forEach(a => { if (a.rain >= 10) lookup[a.pos.nama] = a; });
+
+            thiessenData.features.forEach(feat => {
+                const nama = apiNama(feat.properties.Name);
+                const a = lookup[nama];
+                if (!a) return;
+                const color = '#0074D9';
+                const layer = L.geoJSON(feat, {
+                    style: { color, fillColor: color, weight: 2, fillOpacity: 0.25, dashArray: '5,4' }
+                }).bindPopup(`
+                    <div style="padding:6px; min-width:210px;">
+                        <h4 style="margin:0 0 4px; color:${color};">Hujan Lebat</h4>
+                        <div style="font-weight:bold;">${nama}</div>
+                        <div style="font-size:11px; color:#888; margin:4px 0;">
+                            ${a.rain.toFixed(1)} mm dalam 1 jam terakhir<br>
+                            Durasi hujan: ${Math.round(a.duration / 60)} menit
+                        </div>
+                        <div style="font-size:10px; color:#aaa;">Area pengaruh pos ini</div>
+                    </div>
+                `, {autoPan: true}).addTo(map);
+                thiessenLayers[nama] = layer;
+            });
+        }
+
         function getCHInfo(pdaNama) {
             if (!rainApiData || !pdaPchMapping) return null;
             
@@ -989,7 +1021,7 @@
                     .then(r => r.json())
                     .then(data => {
                         rainApiData = data.items || data;
-                        updateThiessenRain();
+                        // updateThiessenRain();
                     });
                 this.updateRain();
                 this.updateWlevel();
@@ -1018,6 +1050,7 @@
 
                         // Reset badge
                         el.textContent = data.length;
+                        updateThiessenFromAlert(data);
                         if (data.length > 0) {
                             el.style.display = 'inline';
                             el.style.backgroundColor = '#cc0000';

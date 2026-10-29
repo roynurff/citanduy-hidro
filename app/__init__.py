@@ -136,7 +136,7 @@ def get_heavy_rainfall(now: datetime.datetime = None) -> list:
                         'source': r.source,
                         'elevasi': pos.elevasi,
                         },
-                    'sampling': raw[0]['sampling'], 
+                    'sampling': raw[-1]['sampling'], 
                     'rain': hujan, 
                     'duration': durasi.total_seconds()
                 })

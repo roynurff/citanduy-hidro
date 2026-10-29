@@ -828,6 +828,16 @@
             return jamBerturut < 0 ? -jamBerturut - 1 : jamBerturut;
         }
 
+        const THIESSEN_ALIAS = {
+            'PCH Bendung Danasari': 'PCH Danasari',
+            'PCH Tanjungjaya': 'PCH Tanjungjaya Cisaga',
+            'PCH Purwodadi': 'PCH Purwadadi',
+            'PCH Gunung Putri': 'PCH Gn Putri',
+            'PCH Ujungbarang': 'PCH Ujung Barang',
+            'PCH Dayeuhluhur': 'PCH DayeuhLuhur',
+            'PCH Bendung Cijalu': 'PCH Cijalu',
+        };
+        const apiNama = n => THIESSEN_ALIAS[n] || n;
         // Update polygon thiessen berdasarkan CH
         function updateThiessenRain() {
             if (!thiessenData || !rainApiData) return;
@@ -857,11 +867,11 @@
             if (!Object.keys(chLookup).length) return;
 
             // Filter & tampilkan polygon thiessen yang match
-            const matchingFeatures = thiessenData.features.filter(f => chLookup[f.properties.Name]);
+            const matchingFeatures = thiessenData.features.filter(f => chLookup[apiNama(f.properties.Name)]);
             if (!matchingFeatures.length) return;
 
             matchingFeatures.forEach(feat => {
-                const pchNama = feat.properties.Name;
+                const pchNama = apiNama(feat.properties.Name);
                 const ch = chLookup[pchNama];
                 const color = '#0074D9';
 

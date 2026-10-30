@@ -913,7 +913,7 @@
         //--thiessen polygon--
         let thiessenLayer = null;
         let alertLookup = {};
-        map.createPane('thiessen').style.zIndex = 450;
+        map.createPane('thiessen').style.zIndex = 250;
 
         function updateThiessenFromAlert(alerts) {
             Object.keys(thiessenLayers).forEach(k => {
@@ -958,53 +958,37 @@
 
         function renderThiessen() {
             if (!thiessenData) return;
-            const rainLookup = {};
-            (rainApiData || []).forEach(i => {
-                rainLookup[i.pos.nama] = parseFloat(i.telemetri?.rain24) || 0;
-            });
-
-            const info = feat => {
-                const nama = apiNama(feat.properties.Name);
-                const mm = rainLookup[nama];
-                return {nama, ada: mm !== undefined, mm: mm || 0,
-                        kat: kategoriHujan(mm || 0), alert: alertLookup[nama]};
-            };
             const styleFn = feat => {
-                const {kat, alert} = info(feat);
+                const a = alertLookup[apiNama(feat.properties.Name)];
+                const kat = a ? kategoriHujan(a.rain) : null;
                 return {
-                    color: alert ? '#0074D9' : '#8d6e63',
-                    weight: alert ? 3 : 1.5,
+                    color: a ? '#0074D9' : '#8d6e63',
+                    weight: a ? 3 : 1,
                     dashArray: '5,4',
                     fillColor: kat ? kat.color : '#000',
-                    fillOpacity: kat ? 0.4 : 0
+                    fillOpacity: kat ? 0.45 : 0
                 };
             };
 
             if (!thiessenLayer) {
                 thiessenLayer = L.geoJSON(thiessenData, {style: styleFn, pane: 'thiessen'}).addTo(map);
+                thiessenLayer.eachLayer(l => l.bindPopup(() => {
+                    const nama = apiNama(l.feature.properties.Name);
+                    const a = alertLookup[nama];
+                    const kat = a ? kategoriHujan(a.rain) : null;
+                    return `<div style="padding:6px; min-width:200px;">
+                        <div style="font-weight:bold;">${nama}</div>
+                        ${a
+                            ? `<div style="font-size:12px; margin:4px 0;">
+                                <b>${a.rain.toFixed(1)} mm</b> dalam 1 jam terakhir
+                                ${kat ? `<span style="color:${kat.color}; font-weight:bold;"> (${kat.label})</span>` : ''}
+                            </div>`
+                            : '<div style="font-size:12px; color:#888;">Tidak ada siaga hujan</div>'}
+                    </div>`;
+                }, {autoPan: true}));
             } else {
                 thiessenLayer.setStyle(styleFn);
             }
-
-            thiessenLayer.eachLayer(l => {
-                const {nama, ada, mm, kat, alert} = info(l.feature);
-                l.bindPopup(`
-                    <div style="padding:6px; min-width:200px;">
-                        <div style="font-weight:bold;">${nama}</div>
-                        ${ada
-                            ? `<div style="font-size:12px; margin:4px 0;">
-                                Hujan hari ini: <b>${mm.toFixed(1)} mm</b>
-                                ${kat ? `<span style="color:${kat.color}; font-weight:bold;"> (${kat.label})</span>` : '(tidak ada hujan)'}
-                            </div>`
-                            : '<div style="font-size:12px; color:#888;">Tidak ada data hari ini</div>'}
-                        ${alert
-                            ? `<div style="font-size:11px; color:#0074D9; margin-top:4px;">
-                                Siaga: ${alert.rain.toFixed(1)} mm dalam 1 jam terakhir
-                            </div>`
-                            : ''}
-                    </div>
-                `, {autoPan: true});
-            });
         }
 
         function getCHInfo(pdaNama) {
@@ -1086,7 +1070,7 @@
                     .then(r => r.json())
                     .then(data => {
                         rainApiData = data.items || data;
-                        renderThiessen();
+                        // renderThiessen();
                         // updateThiessenRain();
                     });
                 this.updateRain();
@@ -1371,7 +1355,7 @@
                                     Batas Wilayah Adminsitratif
                                 </li>
                                 <li style="margin: 10px 0 6px; font-weight: bold; font-size: 12px;">
-                                    Hujan Harian (area Thiessen)
+                                    Hujan 1 Jam Terakhir (area Thiessen)
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 6px;">
                                     <span style="display: inline-block; width: 16px; height: 16px; background-color: #43A047; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>

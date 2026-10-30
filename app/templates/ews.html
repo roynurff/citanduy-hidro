@@ -75,7 +75,7 @@
         }
 
         .box:not(.collapsed) .box-content {
-            max-height: 500px;
+            max-height: 600px;
             padding: 10px 15px;
             overflow-y: auto;
         }
@@ -910,6 +910,11 @@
             console.log(`Thiessen rain: ${Object.keys(thiessenLayers).length} polygon aktif`);
         }
 
+        //--thiessen polygon--
+        let thiessenLayer = null;
+        let alertLookup = {};
+        map.createPane('thiessen').style.zIndex = 450;
+
         function updateThiessenFromAlert(alerts) {
             Object.keys(thiessenLayers).forEach(k => {
                 map.removeLayer(thiessenLayers[k]);
@@ -939,6 +944,66 @@
                     </div>
                 `, {autoPan: true}).addTo(map);
                 thiessenLayers[nama] = layer;
+            });
+        }
+
+        function kategoriHujan(mm) {
+            if (mm >= 150) return {label: 'Ekstrem', color: '#8E24AA'};
+            if (mm >= 100) return {label: 'Sangat Lebat', color: '#E53935'};
+            if (mm >= 50)  return {label: 'Lebat', color: '#FB8C00'};
+            if (mm >= 20)  return {label: 'Sedang', color: '#FDD835'};
+            if (mm >= 0.5) return {label: 'Ringan', color: '#43A047'};
+            return null;
+        }
+
+        function renderThiessen() {
+            if (!thiessenData) return;
+            const rainLookup = {};
+            (rainApiData || []).forEach(i => {
+                rainLookup[i.pos.nama] = parseFloat(i.telemetri?.rain24) || 0;
+            });
+
+            const info = feat => {
+                const nama = apiNama(feat.properties.Name);
+                const mm = rainLookup[nama];
+                return {nama, ada: mm !== undefined, mm: mm || 0,
+                        kat: kategoriHujan(mm || 0), alert: alertLookup[nama]};
+            };
+            const styleFn = feat => {
+                const {kat, alert} = info(feat);
+                return {
+                    color: alert ? '#0074D9' : '#8d6e63',
+                    weight: alert ? 3 : 1.5,
+                    dashArray: '5,4',
+                    fillColor: kat ? kat.color : '#000',
+                    fillOpacity: kat ? 0.4 : 0
+                };
+            };
+
+            if (!thiessenLayer) {
+                thiessenLayer = L.geoJSON(thiessenData, {style: styleFn, pane: 'thiessen'}).addTo(map);
+            } else {
+                thiessenLayer.setStyle(styleFn);
+            }
+
+            thiessenLayer.eachLayer(l => {
+                const {nama, ada, mm, kat, alert} = info(l.feature);
+                l.bindPopup(`
+                    <div style="padding:6px; min-width:200px;">
+                        <div style="font-weight:bold;">${nama}</div>
+                        ${ada
+                            ? `<div style="font-size:12px; margin:4px 0;">
+                                Hujan hari ini: <b>${mm.toFixed(1)} mm</b>
+                                ${kat ? `<span style="color:${kat.color}; font-weight:bold;"> (${kat.label})</span>` : '(tidak ada hujan)'}
+                            </div>`
+                            : '<div style="font-size:12px; color:#888;">Tidak ada data hari ini</div>'}
+                        ${alert
+                            ? `<div style="font-size:11px; color:#0074D9; margin-top:4px;">
+                                Siaga: ${alert.rain.toFixed(1)} mm dalam 1 jam terakhir
+                            </div>`
+                            : ''}
+                    </div>
+                `, {autoPan: true});
             });
         }
 
@@ -1021,6 +1086,7 @@
                     .then(r => r.json())
                     .then(data => {
                         rainApiData = data.items || data;
+                        renderThiessen();
                         // updateThiessenRain();
                     });
                 this.updateRain();
@@ -1050,7 +1116,11 @@
 
                         // Reset badge
                         el.textContent = data.length;
-                        updateThiessenFromAlert(data);
+                        // updateThiessenFromAlert(data);
+                        alertLookup = {};
+                        data.forEach(a => { if (a.rain >= 10) alertLookup[a.pos.nama] = a; });
+                        renderThiessen();
+
                         if (data.length > 0) {
                             el.style.display = 'inline';
                             el.style.backgroundColor = '#cc0000';
@@ -1299,6 +1369,33 @@
                                 <li style="display: flex; align-items: center; margin-bottom: 8px;">
                                     <span style="display: inline-block; width: 24px; height: 3px; background-color: #eab308; margin-right: 8px;"></span>
                                     Batas Wilayah Adminsitratif
+                                </li>
+                                <li style="margin: 10px 0 6px; font-weight: bold; font-size: 12px;">
+                                    Hujan Harian (area Thiessen)
+                                </li>
+                                <li style="display: flex; align-items: center; margin-bottom: 6px;">
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #43A047; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    0,5 - 20 mm (Ringan)
+                                </li>
+                                <li style="display: flex; align-items: center; margin-bottom: 6px;">
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #FDD835; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    20 - 50 mm (Sedang)
+                                </li>
+                                <li style="display: flex; align-items: center; margin-bottom: 6px;">
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #FB8C00; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    50 - 100 mm (Lebat)
+                                </li>
+                                <li style="display: flex; align-items: center; margin-bottom: 6px;">
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #E53935; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    100 - 150 mm (Sangat Lebat)
+                                </li>
+                                <li style="display: flex; align-items: center; margin-bottom: 6px;">
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #8E24AA; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    &gt; 150 mm (Ekstrem)
+                                </li>
+                                <li style="display: flex; align-items: center; margin-bottom: 6px;">
+                                    <span style="display: inline-block; width: 16px; height: 16px; margin-right: 8px; border: 3px dashed #0074D9;"></span>
+                                    Siaga hujan (&gt;10 mm/jam)
                                 </li>
                             </ul>
                         </div>

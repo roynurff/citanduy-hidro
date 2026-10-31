@@ -969,11 +969,10 @@
         // }
 
         function kategoriHujan(mm) {
-            if (mm >= 150) return {label: 'Ekstrem', color: '#8E24AA'};
-            if (mm >= 100) return {label: 'Sangat Lebat', color: '#E53935'};
-            if (mm >= 50)  return {label: 'Lebat', color: '#FB8C00'};
-            if (mm >= 20)  return {label: 'Sedang', color: '#FDD835'};
-            if (mm >= 0.5) return {label: 'Ringan', color: '#43A047'};
+            if (mm > 20)  return {label: 'Sangat Lebat', color: '#f5140f'};
+            if (mm >= 10) return {label: 'Lebat', color: '#fb7500'};
+            if (mm >= 5)  return {label: 'Sedang', color: '#fdc835'};
+            if (mm >= 1)  return {label: 'Ringan', color: '#25cc2c'};
             return null;
         }
 
@@ -1126,7 +1125,7 @@
                         el.textContent = data.length;
                         // updateThiessenFromAlert(data);
                         alertLookup = {};
-                        data.forEach(a => { if (a.rain >= 10) alertLookup[a.pos.nama] = a; });
+                          data.forEach(a => { alertLookup[a.pos.nama] = a; });
                         renderThiessen();
 
                         if (data.length > 0) {
@@ -1355,28 +1354,24 @@
                                     Hujan 1 Jam Terakhir (area Thiessen)
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #43A047; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
-                                    0,5 - 20 mm (Ringan)
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #25cc2c; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    1 - 5 mm/jam (Ringan)
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #FDD835; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
-                                    20 - 50 mm (Sedang)
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #fdc835; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    5 - 10 mm/jam (Sedang)
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #FB8C00; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
-                                    50 - 100 mm (Lebat)
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #fb7500; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    10 - 20 mm/jam (Lebat)
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #E53935; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
-                                    100 - 150 mm (Sangat Lebat)
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #f5140f; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
+                                    &gt; 20 mm/jam (Sangat Lebat)
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #8E24AA; opacity: 0.6; margin-right: 8px; border: 1px dashed #8d6e63;"></span>
-                                    &gt; 150 mm (Ekstrem)
-                                </li>
-                                <li style="display: flex; align-items: center; margin-bottom: 6px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; margin-right: 8px; border: 3px dashed #0074D9;"></span>
-                                    Siaga hujan (&gt;10 mm/jam)
+                                    <span style="display: inline-block; width: 16px; height: 16px; margin-right: 8px; border: 3px solid #0074D9; box-sizing: border-box;"></span>
+                                    Pantauan hujan (&gt;5 mm/jam)
                                 </li>
                             </ul>
                         </div>

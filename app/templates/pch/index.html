@@ -64,7 +64,7 @@
         <small class="fw-bold">Kategori Hujan per&nbsp;hari (24 jam)</small>
         <table class="table table-sm" style="font-size: 0.8rem;">
             <tr>
-                <td style="width:68px;"><span style="font-size:8pt;color:#fff;border-radius: 10%; padding: 4px; background-color: rgb(255, 32, 32);">&gt;150</span></td><th>Hujan Ekstrim</th>
+                <td style="width:68px;"><span style="font-size:8pt;color:#fff;border-radius: 10%; padding: 4px; background-color: rgb(128, 0, 255);">&gt;150</span></td><th>Hujan Ekstrim</th>
                 </tr>
                 <tr>
             <td><span style="font-size:0.7rem;color:#fff;border-radius: 10%; padding: 2px; background-color:rgb(255, 32, 32)">100&nbsp;-&nbsp;150</span></td><th>Hujan Sangat Lebat</th>
@@ -73,13 +73,13 @@
             <td><span style="border-radius: 10%; padding: 2px; background-color:rgb(255, 165, 0)">50 - 100</span></td><th>Hujan Lebat</th>
           </tr>
           <tr>
-            <td><span style="border-radius: 10%; padding: 2px; background-color:rgb(214, 193, 54)">20 - 50</span></td><th>Hujan Sedang</th>
+            <td><span style="border-radius: 10%; padding: 2px; background-color:rgb(255, 255, 0)">20 - 50</span></td><th>Hujan Sedang</th>
           </tr>
           <tr>
             <td><span style="border-radius: 10%; padding: 2px; background-color: rgb(32, 255, 32)">0,5 - 20</span></td><th>Hujan Ringan</th>
           </tr>
         </table>      
-      </div>
+    </div>
 </div>
 {% endblock %}
 {% block js_foot %}
@@ -92,25 +92,25 @@ function domReady () {
 }
 
 function categorizeRain(el) {
-    value = parseFloat(el.innerText);
-    if (value >= 0.5) {
-        el.style.borderRadius = "15%";
-        el.style.padding = "2px";
+    const value = parseFloat(el.innerText);
+    if (isNaN(value) || value < 0.5) return;
+
+    el.style.borderRadius = "15%";
+    el.style.padding = "2px";
+
+    if (value < 20) {
+        el.style.backgroundColor = "rgb(32, 255, 32)";      // ringan
+    } else if (value < 50) {
+        el.style.backgroundColor = "rgb(255, 255, 0)";      // sedang
+    } else if (value < 100) {
+        el.style.backgroundColor = "rgb(255, 165, 0)";      // lebat
+    } else if (value < 150) {
+        el.style.backgroundColor = "rgb(255, 32, 32)";      // sangat lebat
+        el.style.color = "#fff";
+    } else {
+        el.style.backgroundColor = "rgb(128, 0, 255)";      // ekstrem
+        el.style.color = "#fff";
     }
-    if (value >= 0.5 && value <= 20) {
-        // hujan ringan
-        el.style.backgroundColor = "rgb(32, 255, 32)";
-    } else if (value > 20 && value <= 50) {
-        // hujan sedang
-        el.style.backgroundColor = "rgb(214, 193, 5)";
-    } else if (value > 50 && value <= 100) {
-        // hujan lebat
-        el.style.backgroundColor = "rgb(255, 165, 0)";
-    } else if (value > 100){
-        // hujan sangat lebat
-        el.style.backgroundColor = "rgb(255, 32, 32)";
-        el.style.color = "rgb(255, 255, 255)";
-    }    
 }
 
 // Mozilla, Opera, Webkit 

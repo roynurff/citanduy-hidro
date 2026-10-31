@@ -51,8 +51,8 @@
       // 0.5-20: Hujan Ringan (Light Rain) - Light Green to Green
       // 20-50: Hujan Sedang (Moderate Rain) - Green to Yellow
       // 50-100: Hujan Lebat (Heavy Rain) - Yellow to Orange
-      // 100-150: Hujan Sangat Lebat (Very Heavy Rain) - Orange to Dark Orange
-      // >150: Hujan Ekstrim (Extreme Rain) - Red
+      // 100-150: Hujan Sangat Lebat (Very Heavy Rain) - Red
+      // >150: Hujan Ekstrim (Extreme Rain) - Purple
       
       if (v < 20) {
         // Light Rain: Light Green -> Green
@@ -76,15 +76,15 @@
         const b = 0;
         return `rgb(${r},${g},${b})`;
       } else if (v < 150) {
-        // Very Heavy Rain: Orange -> Dark Orange
-        const t = (v - 100) / (150 - 100);
-        const r = 255;
-        const g = Math.round(165 - 65 * t);  // 165 -> 100
-        const b = 0;
-        return `rgb(${r},${g},${b})`;
-      } else {
-        // Extreme Rain: Red
+        // Very Heavy Rain: Red
+        // const t = (v - 100) / (150 - 100);
+        // const r = 255;
+        // const g = Math.round(165 - 65 * t);  // 165 -> 100
+        // const b = 0;
         return `rgb(255,0,0)`;
+      } else {
+        // Extreme Rain: Purple
+        return `rgb(128,0,255)`;
       }
     }
 
@@ -221,7 +221,7 @@
 
         let numerator = 0;
         let denominator = 0;
-        const maxDistance = 25000; // Batas jarak maksimum pengaruh (15km)
+        const maxDistance = 25000; // Batas jarak maksimum pengaruh (25km)
 
         for (const station of this._stations) {
           const dx = (station.lng - lng) * Math.cos(lat * Math.PI / 180);
@@ -349,10 +349,10 @@
       legend.onAdd = function(map) {
         const div = L.DomUtil.create('div', 'legend');
         div.innerHTML = `
-          <div style="margin-bottom: 8px; font-weight: bold;">Intensitas Hujan (mm)</div>
-          <div><span class="colorbox" style="background: rgb(255,0,0);"></span> > 150 - Hujan Ekstrim</div>
-          <div><span class="colorbox" style="background: rgb(255,100,0);"></span> 100 - 150 - Hujan Sangat Lebat</div>
-          <div><span class="colorbox" style="background: rgb(255,165,0);"></span> 50 - 100 - Hujan Lebat</div>
+          <div style="margin-bottom: 8px; font-weight: bold;">Intensitas Hujan Harian (mm)</div>
+          <div><span class="colorbox" style="background: rgb(128,0,255);"></span> > 150 - Hujan Ekstrim</div>
+          <div><span class="colorbox" style="background: rgb(255,0,0);"></span> 100 - 150 - Hujan Sangat Lebat</div>
+          <div><span class="colorbox" style="background: rgb(255,123,0);"></span> 50 - 100 - Hujan Lebat</div>
           <div><span class="colorbox" style="background: rgb(255,255,0);"></span> 20 - 50 - Hujan Sedang</div>
           <div><span class="colorbox" style="background: rgb(72,190,0);"></span> 0.5 - 20 - Hujan Ringan</div>
           <div><span class="colorbox" style="background: rgba(0,0,0,0); border: 1px solid #ccc;"></span> < 0.5 - Tidak Ada Hujan</div>

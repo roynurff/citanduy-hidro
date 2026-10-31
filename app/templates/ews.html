@@ -170,11 +170,26 @@
                     id: 'mapbox/streets-v11'
         }).addTo(map);
 
+        map.createPane('base').style.zIndex = 200;      // admin + DAS
+        map.createPane('thiessen').style.zIndex = 250;
+        map.createPane('sensors').style.zIndex = 500;   // titik PDA
+
         let thiessenData = null;
         const thiessenLayers = {};
 
         // --- Daftar Layer GeoJSON yang akan dimuat ---
         const geoJsonLayers = {}; // Objek untuk menyimpan referensi layer setelah dimuat
+
+        function popupHtml({judul, warna = '#555', nama, sub = '', nilai = '', satuan = '', baris = [], foot = ''}) {
+            return `<div style="padding:6px; min-width:220px; font-size:12px; color:#333;">
+                <div style="font-size:11px; font-weight:bold; letter-spacing:.06em; text-transform:uppercase; color:${warna};">${judul}</div>
+                <div style="font-size:14px; font-weight:bold; margin-top:2px;">${nama}</div>
+                ${sub ? `<div style="font-size:11px; color:#888;">${sub}</div>` : ''}
+                ${nilai !== '' ? `<div style="margin:8px 0 2px;"><span style="font-size:24px; font-weight:bold; color:${warna};">${nilai}</span> <span style="font-size:12px; color:#666;">${satuan}</span></div>` : ''}
+                ${baris.length ? `<div style="font-size:11px; color:#666; margin-top:6px;">${baris.join('<br>')}</div>` : ''}
+                ${foot ? `<div style="font-size:10px; color:#aaa; margin-top:8px; border-top:1px solid #eee; padding-top:4px;">${foot}</div>` : ''}
+            </div>`;
+        }
 
         // Definisi sungai yang akan ditampilkan
         const sungaiToShow = [
@@ -284,49 +299,69 @@
                     return L.circleMarker(latlng, layerDefinitions.find(def => def.id === 'faultyDevice').style(feature));
                 },
                 onEachFeature: function(feature, layer) {
-                    if (feature.properties && feature.properties.nama) {
-                        layer.bindPopup(`
-                            <div style="padding:4px; min-width:220px;">
-                                <h4 style="margin:0 0 8px 0; color:#d00;">Faulty Device</h4>
-                                <div style="font-weight:bold; margin-bottom:6px;">${feature.properties.nama}</div>
-                                <div style="font-size:0.95em; color:#555;">
-                                    <span>Last Sampling:</span><br>
-                                    <span style="font-weight:bold;">${feature.properties.latest_sampling}</span>
-                                </div>
-                                <div style="margin-top:8px; color:#d00; font-size:1.1em;">
-                                    Offline for <span id="offline-duration-${feature.properties.id || feature.properties.nama.replace(/\s/g,'')}"></span>
-                                </div>
-                            </div>
-                        `, {autoPan: true});
-
-                        // Calculate and set offline duration after popup opens
-                        layer.on('popupopen', function(e) {
-                            const samplingTime = new Date(feature.properties.latest_sampling.replace(' ', 'T'));
-                            const now = new Date();
-                            const diffMs = now - samplingTime;
-                            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                            const diffMinutes = Math.floor((diffMs / (1000 * 60)) % 60);
-                            let durationText = '';
-                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                            if (diffDays > 365) {
-                                durationText = 'more than a year';
-                            } else if (diffDays > 180) {
-                                durationText = 'more than 6 months';
-                            } else if (diffDays > 30) {
-                                durationText = 'more than 1 month';
-                            } else if (diffDays > 0) {
-                                durationText = `${diffDays} day${diffDays > 1 ? 's' : ''}, ${diffHours % 24} hour${(diffHours % 24) !== 1 ? 's' : ''}`;
-                            } else if (diffHours > 0) {
-                                durationText = `${diffHours} hour${diffHours > 1 ? 's' : ''}`;
-                            } else {
-                                durationText = `${diffMinutes} min`;
-                            }
-                            const elId = `offline-duration-${feature.properties.id || feature.properties.nama.replace(/\s/g,'')}`;
-                            const el = document.getElementById(elId);
-                            if (el) el.textContent = durationText;
+                    if (!feature.properties || !feature.properties.nama) return;
+                    layer.bindPopup(() => {
+                        const diffMs = Date.now() - new Date(feature.properties.latest_sampling.replace(' ', 'T'));
+                        const d = Math.floor(diffMs / 86400000);
+                        const h = Math.floor(diffMs / 3600000) % 24;
+                        const m = Math.floor(diffMs / 60000) % 60;
+                        const dur = d > 365 ? 'lebih dari 1 tahun'
+                                : d > 30  ? 'lebih dari 1 bulan'
+                                : d > 0   ? `${d} hari ${h} jam`
+                                : h > 0   ? `${h} jam ${m} menit`
+                                : `${m} menit`;
+                        return popupHtml({
+                            judul: 'Perangkat offline', warna: '#d00',
+                            nama: feature.properties.nama,
+                            baris: [`Offline selama ${dur}`],
+                            foot: `Terakhir aktif: ${feature.properties.latest_sampling}`
                         });
-                    }
+                    }, {autoPan: true});
                 }
+                // onEachFeature: function(feature, layer) {
+                //     if (feature.properties && feature.properties.nama) {
+                //         layer.bindPopup(`
+                //             <div style="padding:4px; min-width:220px;">
+                //                 <h4 style="margin:0 0 8px 0; color:#d00;">Faulty Device</h4>
+                //                 <div style="font-weight:bold; margin-bottom:6px;">${feature.properties.nama}</div>
+                //                 <div style="font-size:0.95em; color:#555;">
+                //                     <span>Last Sampling:</span><br>
+                //                     <span style="font-weight:bold;">${feature.properties.latest_sampling}</span>
+                //                 </div>
+                //                 <div style="margin-top:8px; color:#d00; font-size:1.1em;">
+                //                     Offline for <span id="offline-duration-${feature.properties.id || feature.properties.nama.replace(/\s/g,'')}"></span>
+                //                 </div>
+                //             </div>
+                //         `, {autoPan: true});
+
+                //         // Calculate and set offline duration after popup opens
+                //         layer.on('popupopen', function(e) {
+                //             const samplingTime = new Date(feature.properties.latest_sampling.replace(' ', 'T'));
+                //             const now = new Date();
+                //             const diffMs = now - samplingTime;
+                //             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                //             const diffMinutes = Math.floor((diffMs / (1000 * 60)) % 60);
+                //             let durationText = '';
+                //             const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                //             if (diffDays > 365) {
+                //                 durationText = 'more than a year';
+                //             } else if (diffDays > 180) {
+                //                 durationText = 'more than 6 months';
+                //             } else if (diffDays > 30) {
+                //                 durationText = 'more than 1 month';
+                //             } else if (diffDays > 0) {
+                //                 durationText = `${diffDays} day${diffDays > 1 ? 's' : ''}, ${diffHours % 24} hour${(diffHours % 24) !== 1 ? 's' : ''}`;
+                //             } else if (diffHours > 0) {
+                //                 durationText = `${diffHours} hour${diffHours > 1 ? 's' : ''}`;
+                //             } else {
+                //                 durationText = `${diffMinutes} min`;
+                //             }
+                //             const elId = `offline-duration-${feature.properties.id || feature.properties.nama.replace(/\s/g,'')}`;
+                //             const el = document.getElementById(elId);
+                //             if (el) el.textContent = durationText;
+                //         });
+                //     }
+                // }
             },
             {
                 id: 'rainSensor',
@@ -736,19 +771,9 @@
                 },
                 onEachFeature: (feat, lyr) => {
                     const p = feat.properties;
-                    lyr.bindPopup(`
-                        <div style="padding:6px; min-width:220px;">
-                            <h4 style="margin:0 0 4px; color:${result.color};">${result.label}</h4>
-                            <div style="font-weight:bold;">${p.Lokasi}</div>
-                            <div style="font-size:11px; color:#888; margin:4px 0;">
-                                PDA: ${p.PDA}<br>
-                                TMA: ${latestWlevel.toFixed(1)} cm (${(pct*100).toFixed(0)}% dari max)<br>
-                                CH terdekat: ${chInfo ? chInfo.intensitas.toFixed(1)+'mm/jam, '+chInfo.durasi+' jam' : '–'}<br>
-                                Luas riwayat: ${p['Luas (ha)']} ha
-                            </div>
-                            <div style="font-size:10px; color:#aaa;">Riwayat: ${p.Tanggal}</div>
-                        </div>
-                    `, {autoPan: true});
+                    lyr.bindPopup(popupHtml({judul: result.label, warna: result.color, nama: p.Lokasi,
+                    baris: [`PDA: ${p.PDA}`, `TMA: ${latestWlevel.toFixed(1)} cm (${(pct*100).toFixed(0)}% dari max)`,
+                            `Luas riwayat: ${p['Luas (ha)']} ha`], foot: `Riwayat: ${p.Tanggal}`}), {autoPan: true});
                 }
             }).addTo(map);
             // console.log('layer added:', layer.getBounds()); 
@@ -789,20 +814,16 @@
                 fillOpacity: 0.2,
                 weight: 2,
                 dashArray: pct < 1.0 ? '6,4' : null
-            }).bindPopup(`
-                <div style="padding:6px; min-width:220px;">
-                    <h4 style="margin:0 0 4px; color:${result.color};">⚠️ ${result.label}</h4>
-                    <div style="font-weight:bold;">${pos.nama}</div>
-                    <div style="font-size:11px; color:#888; margin:4px 0;">
-                        TMA: ${latestWlevel.toFixed(2)} cm (${tmaMax ? (pct*100).toFixed(0)+'%' : '–'})<br>
-                        SH: ${pos.sh??'–'} &bull; SK: ${pos.sk??'–'} &bull; SM: ${pos.sm??'–'}<br>
-                        CH terdekat: ${chInfo ? chInfo.intensitas.toFixed(1)+'mm/jam, '+chInfo.durasi+' jam' : '–'}
-                    </div>
-                    <div style="font-size:10px; color:#aaa; margin-top:4px;">
-                        ⚠️ Estimasi — belum ada data riwayat banjir untuk pos ini
-                    </div>
-                </div>
-            `, {autoPan: true}).addTo(map);
+            }).bindPopup(popupHtml({
+                judul: result.label, warna: result.color, nama: pos.nama,
+                nilai: latestWlevel.toFixed(1), satuan: 'cm',
+                baris: [
+                    `${tmaMax ? (pct * 100).toFixed(0) + '% dari SM' : 'SM belum diatur'}`,
+                    `SH ${pos.sh ?? '-'} | SK ${pos.sk ?? '-'} | SM ${pos.sm ?? '-'}`,
+                    `CH terdekat: ${chInfo ? chInfo.intensitas.toFixed(1) + ' mm/jam, ' + chInfo.durasi + ' jam' : '-'}`
+                ],
+                foot: 'Estimasi, belum ada data riwayat banjir untuk pos ini'
+            }), {autoPan: true}).addTo(map);
 
             if (circle._path) circle._path.classList.add(pct >= 1.0 ? 'animated-danger' : 'animated-warning');
             genanganLayers[key] = circle;
@@ -839,113 +860,113 @@
         };
         const apiNama = n => THIESSEN_ALIAS[n] || n;
         // Update polygon thiessen berdasarkan CH
-        function updateThiessenRain() {
-            if (!thiessenData || !rainApiData) return;
+        // function updateThiessenRain() {
+        //     if (!thiessenData || !rainApiData) return;
 
-            // Hapus layer thiessen lama
-            Object.keys(thiessenLayers).forEach(key => {
-                map.removeLayer(thiessenLayers[key]);
-                delete thiessenLayers[key];
-            });
+        //     // Hapus layer thiessen lama
+        //     Object.keys(thiessenLayers).forEach(key => {
+        //         map.removeLayer(thiessenLayers[key]);
+        //         delete thiessenLayers[key];
+        //     });
 
-            // Buat lookup CH per nama PCH
-            const chLookup = {};
-            rainApiData.forEach(item => {
-                const jamBerturut = hitungJamBerturut(item.telemetri?.rain);
-                // console.log(item.pos.nama, 'jam:', jamBerturut);
-                if (jamBerturut >= 1) {
-                    chLookup[item.pos.nama] = {
-                        jamBerturut,
-                        rain24: item.telemetri.rain24,
-                        intensitasMax: Math.max(...Object.values(item.telemetri.rain).map(v => v.rain))
-                    };
-                }
-            });
-            console.log('chLookup:', chLookup); 
-            console.log('matching:', thiessenData.features.filter(f => chLookup[f.properties.Name]).length);
+        //     // Buat lookup CH per nama PCH
+        //     const chLookup = {};
+        //     rainApiData.forEach(item => {
+        //         const jamBerturut = hitungJamBerturut(item.telemetri?.rain);
+        //         // console.log(item.pos.nama, 'jam:', jamBerturut);
+        //         if (jamBerturut >= 1) {
+        //             chLookup[item.pos.nama] = {
+        //                 jamBerturut,
+        //                 rain24: item.telemetri.rain24,
+        //                 intensitasMax: Math.max(...Object.values(item.telemetri.rain).map(v => v.rain))
+        //             };
+        //         }
+        //     });
+        //     console.log('chLookup:', chLookup); 
+        //     console.log('matching:', thiessenData.features.filter(f => chLookup[f.properties.Name]).length);
 
-            if (!Object.keys(chLookup).length) return;
+        //     if (!Object.keys(chLookup).length) return;
 
-            // Filter & tampilkan polygon thiessen yang match
-            const matchingFeatures = thiessenData.features.filter(f => chLookup[apiNama(f.properties.Name)]);
-            if (!matchingFeatures.length) return;
+        //     // Filter & tampilkan polygon thiessen yang match
+        //     const matchingFeatures = thiessenData.features.filter(f => chLookup[apiNama(f.properties.Name)]);
+        //     if (!matchingFeatures.length) return;
 
-            matchingFeatures.forEach(feat => {
-                const pchNama = apiNama(feat.properties.Name);
-                const ch = chLookup[pchNama];
-                const color = '#0074D9';
+        //     matchingFeatures.forEach(feat => {
+        //         const pchNama = apiNama(feat.properties.Name);
+        //         const ch = chLookup[pchNama];
+        //         const color = '#0074D9';
 
-                const layer = L.geoJSON(feat, {
-                    style: {
-                        color: color,
-                        fillColor: color,
-                        weight: 2,
-                        fillOpacity: 0.25,
-                        dashArray: '5,4'
-                    },
-                    onEachFeature: (f, lyr) => {
-                        lyr.bindPopup(`
-                            <div style="padding:6px; min-width:210px;">
-                                <h4 style="margin:0 0 4px; color:${color};">Hujan Lebat</h4>
-                                <div style="font-weight:bold;">${pchNama}</div>
-                                <div style="font-size:11px; color:#888; margin:4px 0;">
-                                    CH > 10mm selama <b>${ch.jamBerturut} jam</b> berturut-turut<br>
-                                    Intensitas maks: ${ch.intensitasMax.toFixed(1)} mm/jam<br>
-                                    Total 24 jam: ${ch.rain24} mm
-                                </div>
-                                <div style="font-size:10px; color:#aaa;">Area pengaruh pos ini</div>
-                            </div>
-                        `, {autoPan: true});
-                    }
-                }).addTo(map);
+        //         const layer = L.geoJSON(feat, {
+        //             style: {
+        //                 color: color,
+        //                 fillColor: color,
+        //                 weight: 2,
+        //                 fillOpacity: 0.25,
+        //                 dashArray: '5,4'
+        //             },
+        //             onEachFeature: (f, lyr) => {
+        //                 lyr.bindPopup(`
+        //                     <div style="padding:6px; min-width:210px;">
+        //                         <h4 style="margin:0 0 4px; color:${color};">Hujan Lebat</h4>
+        //                         <div style="font-weight:bold;">${pchNama}</div>
+        //                         <div style="font-size:11px; color:#888; margin:4px 0;">
+        //                             CH > 10mm selama <b>${ch.jamBerturut} jam</b> berturut-turut<br>
+        //                             Intensitas maks: ${ch.intensitasMax.toFixed(1)} mm/jam<br>
+        //                             Total 24 jam: ${ch.rain24} mm
+        //                         </div>
+        //                         <div style="font-size:10px; color:#aaa;">Area pengaruh pos ini</div>
+        //                     </div>
+        //                 `, {autoPan: true});
+        //             }
+        //         }).addTo(map);
 
-                if (layer._path) layer._path.classList.add('animated-warning');
-                layer.eachLayer(l => {
-                    if (l._path) l._path.classList.add('animated-warning');
-                });
+        //         if (layer._path) layer._path.classList.add('animated-warning');
+        //         layer.eachLayer(l => {
+        //             if (l._path) l._path.classList.add('animated-warning');
+        //         });
 
-                thiessenLayers[pchNama] = layer;
-            });
+        //         thiessenLayers[pchNama] = layer;
+        //     });
 
-            console.log(`Thiessen rain: ${Object.keys(thiessenLayers).length} polygon aktif`);
-        }
+        //     console.log(`Thiessen rain: ${Object.keys(thiessenLayers).length} polygon aktif`);
+        // }
 
         //--thiessen polygon--
         let thiessenLayer = null;
         let alertLookup = {};
         map.createPane('thiessen').style.zIndex = 250;
 
-        function updateThiessenFromAlert(alerts) {
-            Object.keys(thiessenLayers).forEach(k => {
-                map.removeLayer(thiessenLayers[k]);
-                delete thiessenLayers[k];
-            });
-            if (!thiessenData) return;
+        // function updateThiessenFromAlert(alerts) {
+        //     Object.keys(thiessenLayers).forEach(k => {
+        //         map.removeLayer(thiessenLayers[k]);
+        //         delete thiessenLayers[k];
+        //     });
+        //     if (!thiessenData) return;
 
-            const lookup = {};
-            alerts.forEach(a => { if (a.rain >= 10) lookup[a.pos.nama] = a; });
+        //     const lookup = {};
+        //     alerts.forEach(a => { if (a.rain >= 10) lookup[a.pos.nama] = a; });
 
-            thiessenData.features.forEach(feat => {
-                const nama = apiNama(feat.properties.Name);
-                const a = lookup[nama];
-                if (!a) return;
-                const color = '#0074D9';
-                const layer = L.geoJSON(feat, {
-                    style: { color, fillColor: color, weight: 2, fillOpacity: 0.25, dashArray: '5,4' }
-                }).bindPopup(`
-                    <div style="padding:6px; min-width:210px;">
-                        <h4 style="font-size:14px; margin:0 0 4px; color:${color};">Hujan Lebat</h4>
-                        <div style="font-size:14px; font-weight:bold;">${nama}</div>
-                        <div style="font-size:14px; color:#888; margin:4px 0;">
-                            ${a.rain.toFixed(1)} mm dalam 1 jam terakhir<br>
-                            Durasi hujan: ${Math.round(a.duration / 60)} menit
-                        </div>
-                        <div style="font-size:12px; color:#aaa;">Area pengaruh pos ini</div>
-                    </div>
-                `, {autoPan: true}).addTo(map);
-                thiessenLayers[nama] = layer;
-            });
-        }
+        //     thiessenData.features.forEach(feat => {
+        //         const nama = apiNama(feat.properties.Name);
+        //         const a = lookup[nama];
+        //         if (!a) return;
+        //         const color = '#0074D9';
+        //         const layer = L.geoJSON(feat, {
+        //             style: { color, fillColor: color, weight: 2, fillOpacity: 0.25, dashArray: '5,4' }
+        //         }).bindPopup(`
+        //             <div style="padding:6px; min-width:210px;">
+        //                 <h4 style="font-size:14px; margin:0 0 4px; color:${color};">Hujan Lebat</h4>
+        //                 <div style="font-size:14px; font-weight:bold;">${nama}</div>
+        //                 <div style="font-size:14px; color:#888; margin:4px 0;">
+        //                     ${a.rain.toFixed(1)} mm dalam 1 jam terakhir<br>
+        //                     Durasi hujan: ${Math.round(a.duration / 60)} menit
+        //                 </div>
+        //                 <div style="font-size:12px; color:#aaa;">Area pengaruh pos ini</div>
+        //             </div>
+        //         `, {autoPan: true}).addTo(map);
+        //         thiessenLayers[nama] = layer;
+        //     });
+        // }
 
         function kategoriHujan(mm) {
             if (mm >= 150) return {label: 'Ekstrem', color: '#8E24AA'};
@@ -965,6 +986,7 @@
                     color: a ? '#0074D9' : '#8d6e63',
                     weight: a ? 3 : 1,
                     dashArray: '5,4',
+                    fill: !!kat,
                     fillColor: kat ? kat.color : '#000',
                     fillOpacity: kat ? 0.45 : 0
                 };
@@ -976,15 +998,19 @@
                     const nama = apiNama(l.feature.properties.Name);
                     const a = alertLookup[nama];
                     const kat = a ? kategoriHujan(a.rain) : null;
-                    return `<div style="padding:6px; min-width:200px;">
-                        <div style="font-weight:bold;">${nama}</div>
-                        ${a
-                            ? `<div style="font-size:12px; margin:4px 0;">
-                                <b>${a.rain.toFixed(1)} mm</b> dalam 1 jam terakhir
-                                ${kat ? `<span style="color:${kat.color}; font-weight:bold;"> (${kat.label})</span>` : ''}
-                            </div>`
-                            : '<div style="font-size:12px; color:#888;">Tidak ada siaga hujan</div>'}
-                    </div>`;
+                    if (!a) {
+                        return popupHtml({judul: 'Area pengaruh pos hujan', nama,
+                                        baris: ['Tidak ada siaga hujan']});
+                    }
+                    return popupHtml({
+                        judul: 'Siaga hujan', warna: kat ? kat.color : '#0074D9', nama,
+                        nilai: a.rain.toFixed(1), satuan: 'mm / 1 jam terakhir',
+                        baris: [
+                            kat ? `Kategori: ${kat.label}` : '',
+                            `Durasi hujan: ${Math.round(a.duration / 60)} menit`
+                        ].filter(Boolean),
+                        foot: `Sampling: ${a.sampling}`
+                    });
                 }, {autoPan: true}));
             } else {
                 thiessenLayer.setStyle(styleFn);
@@ -1004,8 +1030,10 @@
                 const pch = rainApiData.find(r => r.pos.nama === pchNama);
                 if (!pch?.telemetri?.rain) return;
 
+                const cutoff = Date.now() - 3 * 3600 * 1000; // 3 jam terakhir
                 const jamEntries = Object.entries(pch.telemetri.rain)
-                    .sort((a, b) => a[0].localeCompare(b[0])); // urutkan by waktu
+                    .filter(([k, v]) => new Date(k).getTime() >= cutoff && (v.count === undefined || v.count > 0))
+                    .sort((a, b) => a[0].localeCompare(b[0]));
 
                 // Intensitas max per jam
                 jamEntries.forEach(([, val]) => {
@@ -1042,10 +1070,6 @@
                 if (intensitas >= 10 && durasi >= 3)  return { radius: 1500, color: '#FFC107', label: 'Waspada Banjir' };
                 return                                { radius: 1000, color: '#4CAF50', label: 'Pantau TMA' };
             }
-
-            // TMA normal tapi hujan lebat
-            if (intensitas >= 50 && durasi >= 1) return { radius: 1500, color: '#FFC107', label: 'Pantau Hujan Lebat' };
-            if (intensitas >= 20 && durasi >= 2) return { radius: 1000, color: '#4CAF50', label: 'Pantau Hujan' };
 
             return null; // tidak perlu tampilkan
         }
@@ -1129,23 +1153,10 @@
                             const marker = createSensorMarker([lat, lon], item.pos.id).addTo(map);
                             marker._isRainMarker = true; // tandai biar bisa di-clear
 
-                            marker.bindPopup(`
-                                <div style="padding:4px; min-width:220px;">
-                                    <h4 style="margin:0 0 8px 0; color:#FF851B;">Siaga Hujan</h4>
-                                    <div style="font-weight:bold; margin-bottom:6px;">${item.pos.nama}
-                                        <span style="font-weight:500;color:#888"> +${item.pos.elevasi}
-                                            <span style="font-size:11px;">MDPL</span>
-                                        </span>
-                                    </div>
-                                    <div style="font-size:11px; letter-spacing:0.1em; color:#888;">CURAH HUJAN
-                                        <div style="font-size:3em; color:#444;">${item.rain.toFixed(1)} mm selama ${Math.round(item.duration / 60)} menit</div>
-                                    </div>
-                                    <div style="font-size:0.95em; color:#555;">
-                                        Last Sampling:<br>
-                                        <span style="font-weight:bold;">${item.sampling}</span>
-                                    </div>
-                                </div>
-                            `, {autoPan: true});
+                            marker.bindPopup(popupHtml({judul: 'Siaga hujan', warna: '#0074D9', nama: item.pos.nama,
+                            sub: `+${item.pos.elevasi} mdpl`, nilai: item.rain.toFixed(1), satuan: 'mm / 1 jam terakhir',
+                            baris: [`Durasi hujan: ${Math.round(item.duration / 60)} menit`], foot: `Sampling: ${item.sampling}`}), {autoPan: true});
+
                         });
 
                         el_pch_list.innerHTML = '';
@@ -1168,11 +1179,8 @@
                     })
                     .then(data => {
                         // Hapus marker lama
-                        map.eachLayer(layer => {
-                            if (layer instanceof L.CircleMarker && layer.options?.color === '#FF851B') {
-                                map.removeLayer(layer);
-                            }
-                        });
+                        map.eachLayer(l => { if (l._isWlevel) map.removeLayer(l); });
+                        marker._isWlevel = true;
 
                         el.textContent = data.length;
                         if (data.length > 0) {
@@ -1212,7 +1220,7 @@
                             if (isNaN(lat) || isNaN(lon)) return;
 
                             // Hitung siaga dari threshold
-                            let siagaLabel = 'Normal', markerColor = '#FF851B';
+                            let siagaLabel = 'Normal', markerColor = '#00BFFF';
                             if (pos.sm && latestWlevel >= pos.sm)      { siagaLabel = 'Siaga Merah'; markerColor = '#cc0000'; }
                             else if (pos.sk && latestWlevel >= pos.sk) { siagaLabel = 'Siaga Kuning'; markerColor = '#FFC107'; }
                             else if (pos.sh && latestWlevel >= pos.sh) { siagaLabel = 'Siaga Hijau'; markerColor = '#4CAF50'; }
@@ -1227,26 +1235,17 @@
                                 color: markerColor,
                                 fillColor: markerColor,
                                 fillOpacity: 0.85,
-                                weight: 2
+                                weight: 2,
+                                pane: 'sensors'
                             }).addTo(map);
                             if (marker._path) {
                                 marker._path.classList.add(markerColor === '#cc0000' ? 'animated-danger' : 'animated-warning');
                             }
 
-                            marker.bindPopup(`
-                                <div style="padding:6px; min-width:230px;">
-                                    <h4 style="margin:0 0 4px; color:${markerColor};">${siagaLabel}</h4>
-                                    <div style="font-weight:bold; font-size:14px;">${pos.nama}</div>
-                                    <div style="font-size:11px; color:#888; margin-bottom:8px;">+${pos.elevasi} mdpl</div>
-                                    <div style="font-size:11px; color:#555;">Tinggi Muka Air</div>
-                                    <div style="font-size:2em; font-weight:bold; color:${markerColor};">${latestWlevel.toFixed(2)} <span style="font-size:12px;">cm</span></div>
-                                    <div style="font-size:11px; color:#888; margin-top:4px;">
-                                        SH: ${pos.sh ?? '–'} &bull; SK: ${pos.sk ?? '–'} &bull; SM: ${pos.sm ?? '–'}
-                                    </div>
-                                    <hr style="margin:6px 0; border-color:#eee;">
-                                    <div style="font-size:10px; color:#aaa;">Sampling: ${item.sampling}</div>
-                                </div>
-                            `, {autoPan: true});
+                            marker.bindPopup(popupHtml({judul: siagaLabel, warna: markerColor, nama: pos.nama,
+                            sub: `+${pos.elevasi} mdpl`, nilai: latestWlevel.toFixed(1), satuan: 'cm',
+                            baris: [`SH ${pos.sh ?? '-'} | SK ${pos.sk ?? '-'} | SM ${pos.sm ?? '-'}`], foot: `Sampling: ${item.sampling}`}), {autoPan: true});
+
                         });
 
                         pda_list.innerHTML = '';
@@ -1335,23 +1334,23 @@
                         <div class="box-content layer-toggles">
                             <ul style="padding-inline-start: 0px; margin-top: 0px; list-style: none;">
                                 <li style="display: flex; align-items: center; margin-bottom: 8px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #3b82f6; margin-right: 8px; border: 1px solid #2563eb;"></span>
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #0080FF; margin-right: 8px; border: 1px solid #2563eb;"></span>
                                     Pos Curah Hujan
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 8px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #10b981; margin-right: 8px; border: 1px solid #059669;"></span>
+                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #00BFFF; margin-right: 8px; border: 1px solid #059669;"></span>
                                     Pos Duga Air
                                 </li>
-                                <li style="display: flex; align-items: center; margin-bottom: 8px;">
-                                    <span style="display: inline-block; width: 16px; height: 16px; background-color: #8b5cf6; margin-right: 8px; border: 1px solid #7c3aed;"></span>
-                                    Pos Klimatologi
-                                </li>
+                                // <li style="display: flex; align-items: center; margin-bottom: 8px;">
+                                //     <span style="display: inline-block; width: 16px; height: 16px; background-color: #8b5cf6; margin-right: 8px; border: 1px solid #7c3aed;"></span>
+                                //     Pos Klimatologi
+                                // </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 8px;">
                                     <span style="display: inline-block; width: 24px; height: 3px; background-color: #ef4444; margin-right: 8px;"></span>
                                     Batas Das / Wilayah Sungai
                                 </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 8px;">
-                                    <span style="display: inline-block; width: 24px; height: 3px; background-color: #eab308; margin-right: 8px;"></span>
+                                    <span style="display: inline-block; width: 24px; height: 3px; background-color: #888888; margin-right: 8px;"></span>
                                     Batas Wilayah Adminsitratif
                                 </li>
                                 <li style="margin: 10px 0 6px; font-weight: bold; font-size: 12px;">
@@ -1386,12 +1385,12 @@
                     </div>
 
                     <div class="box">
-                        <h3 class="box-header">About... <span class="toggle-icon">+</span></h3>
+                        <h3 class="box-header">About <span class="toggle-icon">+</span></h3>
                         <div class="box-content">
                             <p>Peringatan Dini Hujan dan Tinggi Muka Air</p>
                             <p>Hujan kategori lebat sejam lalu</p>
                             <p>Tinggi muka air yang melebihi batas Siaga Kuning</p>
-                            <p>Anda juga dapat berlangganan Telegram </p>
+                            <p>Anda juga dapat berlangganan WhatsApp dan Telegram </p>
                         </div>
                     </div>
                 `;

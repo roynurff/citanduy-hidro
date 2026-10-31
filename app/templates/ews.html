@@ -1180,7 +1180,7 @@
                     .then(data => {
                         // Hapus marker lama
                         map.eachLayer(l => { if (l._isWlevel) map.removeLayer(l); });
-                        marker._isWlevel = true;
+                        // marker._isWlevel = true;
 
                         el.textContent = data.length;
                         if (data.length > 0) {
@@ -1238,6 +1238,8 @@
                                 weight: 2,
                                 pane: 'sensors'
                             }).addTo(map);
+                            marker._isWlevel = true;
+                            
                             if (marker._path) {
                                 marker._path.classList.add(markerColor === '#cc0000' ? 'animated-danger' : 'animated-warning');
                             }
@@ -1341,10 +1343,6 @@
                                     <span style="display: inline-block; width: 16px; height: 16px; background-color: #00BFFF; margin-right: 8px; border: 1px solid #059669;"></span>
                                     Pos Duga Air
                                 </li>
-                                // <li style="display: flex; align-items: center; margin-bottom: 8px;">
-                                //     <span style="display: inline-block; width: 16px; height: 16px; background-color: #8b5cf6; margin-right: 8px; border: 1px solid #7c3aed;"></span>
-                                //     Pos Klimatologi
-                                // </li>
                                 <li style="display: flex; align-items: center; margin-bottom: 8px;">
                                     <span style="display: inline-block; width: 24px; height: 3px; background-color: #ef4444; margin-right: 8px;"></span>
                                     Batas Das / Wilayah Sungai

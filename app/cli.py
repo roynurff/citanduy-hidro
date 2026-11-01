@@ -347,12 +347,11 @@ def register(app):
             resp = requests.get(url)
 
             # WA msg (plain text)
-            msg_wa = '*\[PERINGATAN HUJAN\]*\n*BBWS Citanduy*\n\ndibuat: {}\n\n'.format(now.strftime('%d %b %Y jam %H:%M'))
-            for i in range(len(rain_list)):
-                data = rain_list[i]
-                msg_wa += '{}. {} {:.0f}mm ({} menit)\n'.format(i+1, data['pos'], data['rain'], int(data['duration']/60))
-            msg_wa += '\n\n[Peta EWS BBWS Citanduy](https://sihka.bbwscitanduy.id/ews)'
-            msg_wa += '\n\n[Peta Akumulasi Hujan Sehari](https://sihka.bbwscitanduy.id/map/hujan)'
+            msg_wa = '*PERINGATAN HUJAN*\nBBWS Citanduy\n{}\n\n'.format(now.strftime('%d %b %Y, %H:%M'))
+            for i, d in enumerate(rain_list):
+                msg_wa += '{}. {}: {:.0f} mm ({} menit)\n'.format(i+1, d['pos'], d['rain'], int(d['duration']/60))
+            msg_wa += '\nPeta EWS:\nsihka.bbwscitanduy.id/ews'
+            msg_wa += '\n\nAkumulasi hujan harian:\nsihka.bbwscitanduy.id/map/hujan'
             send_wa(msg_wa)
 
         click.echo(msg)
@@ -386,8 +385,7 @@ def register(app):
             resp = requests.get(url)
 
         # WA msg
-        msg_wa = '*\[PERINGATAN TINGGI MUKA AIR\]*\n*BBWS Citanduy*\n\ndibuat: {}\n\n'.format(
-            now.strftime('%d %b %Y jam %H:%M'))
+        msg_wa = '*PERINGATAN TINGGI MUKA AIR*\nBBWS Citanduy\n{}\n\n'.format(now.strftime('%d %b %Y, %H:%M'))
         for i, item in enumerate(warning_list):
             pos = item['pos']
             wlevel = item['wlevel'][-1][1]
@@ -396,8 +394,8 @@ def register(app):
             elif sk and wlevel >= sk:     status = 'SIAGA KUNING'
             elif sh and wlevel >= sh:     status = 'SIAGA HIJAU'
             else:                         status = 'WASPADA'
-            msg_wa += '{}. {} {:.2f} cm [{}]\n'.format(i+1, pos['nama'], wlevel, status)
-        msg_wa += '\n\n[Peta EWS BBWS Citanduy](https://sihka.bbwscitanduy.id/ews)'
+            msg_wa += '{}. {}: {:.1f} cm ({})\n'.format(i+1, pos['nama'], wlevel, status)
+        msg_wa += '\nPeta EWS:\nsihka.bbwscitanduy.id/ews'
         send_wa(msg_wa)
 
         click.echo(msg)

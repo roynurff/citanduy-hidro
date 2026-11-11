@@ -666,6 +666,9 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
             if user is None or not user.check_password(form.password.data):
                 flash('username atau password keliru')
                 return redirect(url_for('login'))
+            if not user.active:
+                flash('akun tidak aktif, hubungi admin')
+                return redirect(url_for('login'))
             login_user(user)
             user.last_login = datetime.datetime.now()
             user.save()

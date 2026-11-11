@@ -1,5 +1,6 @@
-from flask import Blueprint, render_template, flash, redirect, url_for
-from flask_login import login_required
+from flask import Blueprint, render_template, flash, redirect, url_for, abort, request
+from flask_login import login_required, current_user
+from flask_wtf import FlaskForm
 
 from app.models import User, Pos
 from app.forms import UserForm
@@ -7,8 +8,23 @@ from app import admin_required
 
 bp = Blueprint('user', __name__, url_prefix='/user')
 
-
-@bp.route('/<username>/update')
+@bp.route('/<username>/update', methods=['POST'])
+@login_required
+@admin_required
+def update(username):
+    if not FlaskForm().validate_on_submit():
+        abort(400)
+    password = request.form.get('password', '')
+    if len(password) < 6:
+        flash('Password minimal 6 karakter')
+        return redirect(url_for('user.index'))
+    try:
+        u = User.get(User.username == username)
+    except User.DoesNotExist:
+        abort(404)
+    u.set_password(password)  # sudah hash + save
+    flash('Password {} diganti'.format(u.username))
+    return redirect(url_for('user.index'))
 
 @bp.route('/add', methods=['POST'])
 def add():
@@ -47,3 +63,22 @@ def index():
                            users_petugas_pch=users_petugas_pch,
                            users_petugas_pda=users_petugas_pda,
                            form=userform)
+
+
+@bp.route('/<int:id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def toggle(id):
+    if not FlaskForm().validate_on_submit():
+        abort(400)
+    try:
+        u = User.get(User.id == id)
+    except User.DoesNotExist:
+        abort(404)
+    if u.id == current_user.id:
+        flash('Tidak bisa menonaktifkan akun sendiri')
+        return redirect(url_for('user.index'))
+    u.active = not u.active
+    u.save()
+    flash('{} sekarang {}'.format(u.username, 'aktif' if u.active else 'nonaktif'))
+    return redirect(url_for('user.index'))

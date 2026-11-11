@@ -668,6 +668,10 @@ class User(BaseModel, UserMixin):
             return False
         else:
             return True
+            
+    @property
+    def is_active(self):
+        return bool(self.active)
     
     def check_password(self, password):
         return checkpw(password.encode(), self.password.encode())

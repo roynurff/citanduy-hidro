@@ -48,6 +48,7 @@
                         <tr>
                             <th>Username</th>
                             <th>Login Terakhir</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -76,6 +77,7 @@
                             <th>Username</th>
                             <th>Pos</th>
                             <th>Login Terakhir</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -89,6 +91,14 @@
                             <td class="timeago" datetime="{% if u.last_login %}{{ u.last_login }}{% endif %}"></td>
                             
                         </tr>
+                        <td>
+                            <form method="post" action="{{ url_for('user.toggle', id=u.id) }}" class="d-inline">
+                                {{ form.hidden_tag() }}
+                                <button class="btn btn-sm {{ 'btn-outline-danger' if u.active else 'btn-outline-success' }}">
+                                    {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}
+                                </button>
+                            </form>
+                        </td>
                         {% else %}
                         <tr>
                             <td colspan="3">Belum ada User terdaftar</td>
@@ -105,6 +115,7 @@
                             <th>Username</th>
                             <th>Pos</th>
                             <th>Login Terakhir</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -118,6 +129,14 @@
                             <td class="timeago" datetime="{% if u.last_login %}{{ u.last_login }}{% endif %}"></td>
                             
                         </tr>
+                        <td>
+                            <form method="post" action="{{ url_for('user.toggle', id=u.id) }}" class="d-inline">
+                                {{ form.hidden_tag() }}
+                                <button class="btn btn-sm {{ 'btn-outline-danger' if u.active else 'btn-outline-success' }}">
+                                    {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}
+                                </button>
+                            </form>
+                        </td>
                         {% else %}
                         <tr>
                             <td colspan="3">Belum ada User terdaftar</td>
@@ -134,15 +153,17 @@
     </div>
 </div>
 <script>
+    const CSRF = '{{ form.csrf_token._value() }}';
     document.querySelectorAll('.timeago').forEach(e => { e.innerHTML = dayjs().from(dayjs(e.getAttributeNode('datetime').value))});
     function setPassword(uname) {
         return {
             pwForm: '',
             pwd: '',
-            open() { 
-                console.log(uname);
-                this.pwForm = `<form class='float-end' method='POST' action='/user/`+uname+`/update'><input type='hidden' name='username' value='`+uname
-                +`'><input x-model='pwd' @keyup='count()' type='text' name='password' autofocus> <input disabled @click.outside='closeF()' type='submit'></form>`
+            open() {
+                this.pwForm = `<form class='float-end' method='POST' action='/user/` + encodeURIComponent(uname) + `/update' @click.outside='closeF()'>
+                    <input type='hidden' name='csrf_token' value='` + CSRF + `'>
+                    <input x-model='pwd' @keyup='count()' type='text' name='password' minlength='6' required autofocus>
+                    <input type='submit' value='Simpan'></form>`
             },
             closeF() {
                 this.pwForm = '';

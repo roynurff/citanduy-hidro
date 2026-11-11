@@ -53,13 +53,20 @@
                     </thead>
                     <tbody>
                         {% for u in users_kantor %}
-                        <tr>
+                        <tr class="{{ '' if u.active else 'table-secondary text-muted' }}">
                             <td x-data="setPassword('{{ u.username }}')">{{ u.username }} 
                                 <span @click.stop="open()" class="float-end"><i class="bi bi-key"></i></span>
                                 <div x-html="pwForm"></div>
                             </td>
                             <td class="timeago" datetime="{% if u.last_login %}{{ u.last_login }}{% endif %}"></td>
-                            
+                            <td>
+                                <form method="post" action="{{ url_for('user.toggle', id=u.id) }}" class="d-inline">
+                                    {{ form.hidden_tag() }}
+                                    <button class="btn btn-sm {{ 'btn-outline-danger' if u.active else 'btn-outline-success' }}">
+                                        {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
@@ -82,23 +89,22 @@
                     </thead>
                     <tbody>
                         {% for u in users_petugas_pch %}
-                        <tr>
+                        <tr class="{{ '' if u.active else 'table-secondary text-muted' }}">
                             <td x-data="setPassword('{{ u.username }}')">{{ u.username }} 
                                 <span @click.stop="open()" class="float-end"><i class="bi bi-key"></i></span>
                                 <div x-html="pwForm"></div>
                             </td>
                             <td>{% if not u.is_admin %}{{ u.pos.nama }}{% else %}Kantor{% endif %}</td>
                             <td class="timeago" datetime="{% if u.last_login %}{{ u.last_login }}{% endif %}"></td>
-                            
+                            <td>
+                                <form method="post" action="{{ url_for('user.toggle', id=u.id) }}" class="d-inline">
+                                    {{ form.hidden_tag() }}
+                                    <button class="btn btn-sm {{ 'btn-outline-danger' if u.active else 'btn-outline-success' }}">
+                                        {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
-                        <td>
-                            <form method="post" action="{{ url_for('user.toggle', id=u.id) }}" class="d-inline">
-                                {{ form.hidden_tag() }}
-                                <button class="btn btn-sm {{ 'btn-outline-danger' if u.active else 'btn-outline-success' }}">
-                                    {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}
-                                </button>
-                            </form>
-                        </td>
                         {% else %}
                         <tr>
                             <td colspan="3">Belum ada User terdaftar</td>
@@ -120,23 +126,22 @@
                     </thead>
                     <tbody>
                         {% for u in users_petugas_pda %}
-                        <tr>
+                        <tr class="{{ '' if u.active else 'table-secondary text-muted' }}">
                             <td x-data="setPassword('{{ u.username }}')">{{ u.username }} 
                                 <span @click.stop="open()" class="float-end"><i class="bi bi-key"></i></span>
                                 <div x-html="pwForm"></div>
                             </td>
                             <td>{% if not u.is_admin %}{{ u.pos.nama }}{% else %}Kantor{% endif %}</td>
                             <td class="timeago" datetime="{% if u.last_login %}{{ u.last_login }}{% endif %}"></td>
-                            
+                            <td>
+                                <form method="post" action="{{ url_for('user.toggle', id=u.id) }}" class="d-inline">
+                                    {{ form.hidden_tag() }}
+                                    <button class="btn btn-sm {{ 'btn-outline-danger' if u.active else 'btn-outline-success' }}">
+                                        {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
-                        <td>
-                            <form method="post" action="{{ url_for('user.toggle', id=u.id) }}" class="d-inline">
-                                {{ form.hidden_tag() }}
-                                <button class="btn btn-sm {{ 'btn-outline-danger' if u.active else 'btn-outline-success' }}">
-                                    {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}
-                                </button>
-                            </form>
-                        </td>
                         {% else %}
                         <tr>
                             <td colspan="3">Belum ada User terdaftar</td>

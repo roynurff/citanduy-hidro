@@ -78,6 +78,11 @@ def toggle(id):
     if u.id == current_user.id:
         flash('Tidak bisa menonaktifkan akun sendiri')
         return redirect(url_for('user.index'))
+    if u.active and u.pos_id is None:
+        sisa = User.select().where(User.pos.is_null(True), User.active == True, User.id != u.id).count()
+        if sisa == 0:
+            flash('Minimal harus ada satu admin kantor aktif')
+            return redirect(url_for('user.index'))
     u.active = not u.active
     u.save()
     flash('{} sekarang {}'.format(u.username, 'aktif' if u.active else 'nonaktif'))

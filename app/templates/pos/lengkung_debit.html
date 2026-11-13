@@ -126,7 +126,7 @@ function getDebit(input) {
     rows.forEach(r => {
         const hmin = r.dataset.hmin === '' ? -Infinity : parseFloat(r.dataset.hmin);
         const hmax = r.dataset.hmax === '' ? Infinity : parseFloat(r.dataset.hmax);
-        if (!isNaN(tma) && tma >= hmin && tma <= hmax) match = r;
+        if (!isNaN(tma) && tma >= hmin && tma < hmax) match = r;
     });
     rows.forEach(r => r.classList.remove('is-match'));
     if (!match && rows.length) match = rows[0];

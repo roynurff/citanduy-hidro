@@ -740,6 +740,13 @@ def lengkung_debit():
     return render_template('pos/lengkung_debit.html', ctx=ctx, is_admin=is_admin_pos())
 
 
+def _num(v):
+    """Ubah input form ke float. None/'' jadi None, 0 tetap 0."""
+    if v is None or v == '':
+        return None
+    return float(v)
+
+
 @bp.route('/debit/<int:pos_id>', methods=['GET', 'POST'])
 @login_required
 def lengkung_debit_edit(pos_id):
@@ -759,14 +766,21 @@ def lengkung_debit_edit(pos_id):
             for f in ('c_', 'a_', 'b_'):
                 if s.get(f) in (None, ''):
                     return jsonify(ok=False, error=f'Kolom {f} wajib diisi'), 400
+
         versi_baru = datetime.date.today()
         with LengkungDebit._meta.database.atomic():
+            # Timpa edisi hari ini (kalau ada), supaya tidak numpuk
+            LengkungDebit.delete().where(
+                LengkungDebit.pos == pos,
+                LengkungDebit.versi == versi_baru
+            ).execute()
+
             for s in segmen:
                 LengkungDebit.create(
                     pos=pos,
                     versi=versi_baru,
-                    h_min=s.get('h_min') or None,
-                    h_max=s.get('h_max') or None,
+                    h_min=_num(s.get('h_min')),
+                    h_max=_num(s.get('h_max')),
                     c_=float(s['c_']),
                     a_=float(s['a_']),
                     b_=float(s['b_']),

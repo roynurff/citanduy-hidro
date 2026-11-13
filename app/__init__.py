@@ -773,25 +773,25 @@ Data {tipe} Bulan {sampling_date.strftime('%b %Y')} Telemetri
     return app
 
 
-    def register_bluprint(app):
-        from app.pch import bp as bp_pch
-        from app.pda import bp as bp_pda
-        from app.pos import bp as bp_pos
-        from app.fetchlog import bp as bp_fetchlog
-        from app.rdaily import bp as bp_rdaily
-        from app.rpos import bp as bp_rpos
-        from app.user import bp as bp_user
-        from app.map import bp as bp_map
-        from app.petugas import bp as bp_petugas
-        from app.pklimat import bp as bp_klimat
-        from app.pka import bp as bp_ka
-        from app.kinerja import bp as bp_kinerja
-        from app.api import bp as bp_api
-        from app.api.rainfall import bp as bp_rainfall
-        from app.api_lokasi import bp as bp_api_lokasi
-        from app.note import bp as bp_note
-        from app.publikasi import bp as bp_publikasi
-        from app.ticket import bp as bp_ticket
+def register_bluprint(app):
+    from app.pch import bp as bp_pch
+    from app.pda import bp as bp_pda
+    from app.pos import bp as bp_pos
+    from app.fetchlog import bp as bp_fetchlog
+    from app.rdaily import bp as bp_rdaily
+    from app.rpos import bp as bp_rpos
+    from app.user import bp as bp_user
+    from app.map import bp as bp_map
+    from app.petugas import bp as bp_petugas
+    from app.pklimat import bp as bp_klimat
+    from app.pka import bp as bp_ka
+    from app.kinerja import bp as bp_kinerja
+    from app.api import bp as bp_api
+    from app.api.rainfall import bp as bp_rainfall
+    from app.api_lokasi import bp as bp_api_lokasi
+    from app.note import bp as bp_note
+    from app.publikasi import bp as bp_publikasi
+    from app.ticket import bp as bp_ticket
     
     app.register_blueprint(bp_pch)
     app.register_blueprint(bp_pda)

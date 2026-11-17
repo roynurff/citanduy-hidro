@@ -120,3 +120,36 @@ def hujan_hari_ini(pos_id: int, tanggal=None):
     # max, bukan sum: satu pos satu penakar, jangan dobel kalau ada 2 baris/vendor
     total = max((_hujan_dari_raw(raw, src) for src, raw in cur.fetchall()), default=0.0)
     return {"pos_id": pos_id, "hujan_mm": round(total, 1)}
+
+
+def hujan_tertinggi(tanggal=None, top: int = 5):
+    """Pos dengan hujan tertinggi pada tanggal (default hari ini)."""
+    cur = db.execute_sql(
+        "SELECT r.pos_id, p.nama, p.tipe, r.source, r.raw FROM rdaily r "
+        "JOIN pos p ON p.id = r.pos_id "
+        "WHERE r.sampling = COALESCE(%s, CURRENT_DATE)",
+        (tanggal,),
+    )
+    per = {}
+    for pos_id, nama, tipe, src, raw in cur.fetchall():
+        h = round(_hujan_dari_raw(raw, src), 1)
+        if pos_id not in per or h > per[pos_id]["hujan_mm"]:
+            per[pos_id] = {"pos_id": pos_id, "nama": nama, "tipe": tipe, "hujan_mm": h}
+    urut = sorted((v for v in per.values() if v["hujan_mm"] > 0),
+                  key=lambda v: -v["hujan_mm"])
+    return urut[:top]
+
+
+def hujan_harian(pos_id: int, hari: int = 7):
+    """Hujan (mm) per tanggal, `hari` hari terakhir + hari ini.
+    Tanggal tanpa data sengaja tidak muncul (beda dengan 0 mm)."""
+    cur = db.execute_sql(
+        "SELECT sampling, source, raw FROM rdaily "
+        "WHERE pos_id = %s AND sampling BETWEEN CURRENT_DATE - %s AND CURRENT_DATE "
+        "ORDER BY sampling",
+        (pos_id, hari),
+    )
+    per = {}
+    for tgl, src, raw in cur.fetchall():
+        per[tgl] = max(per.get(tgl, 0.0), _hujan_dari_raw(raw, src))
+    return {t.isoformat(): round(v, 1) for t, v in per.items()}

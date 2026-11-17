@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
-from app.models import db  # sesuaikan dengan objek database Peewee kamu
+from app.models import Pos
 
+db = Pos._meta.database
 
 def cari_pos(keyword: str, limit: int = 5):
     """Cari pos berdasarkan nama (tidak peka huruf besar/kecil)."""
@@ -63,9 +64,40 @@ def tma_terakhir(pos_id: int):
         data += parse_raw(raw)
     data.sort(key=lambda x: x["t"])
     valid = [d for d in data if d["wlevel"] is not None and d["wlevel"] > 0]
+    terakhir = data[-1] if data else None
     return {
         "pos_id": pos_id,
-        "data_masuk_terakhir": data[-1]["t"].isoformat() if data else None,
+        "satuan": "cm",
+        "data_masuk_terakhir": terakhir["t"].isoformat() if terakhir else None,
+        "wlevel_pembacaan_terakhir": terakhir["wlevel"] if terakhir else None,
         "tma_valid_terakhir": valid[-1]["wlevel"] if valid else None,
         "waktu_tma_valid": valid[-1]["t"].isoformat() if valid else None,
     }
+
+
+RAIN_MAX = 1000  # mm; batas wajar, buang nilai sampah
+
+
+def _hujan_dari_raw(raw, source):
+    vals = [
+        d["rain"] for d in parse_raw(raw)
+        if d["rain"] is not None and 0 <= d["rain"] < RAIN_MAX
+    ]
+    if not vals:
+        return 0.0
+    if source in ("SA", "SB"):          # per interval
+        return sum(vals)
+    # kumulatif (reset ~07:00): jumlahkan kenaikan positif saja
+    return sum(b - a for a, b in zip(vals, vals[1:]) if b > a)
+
+
+def hujan_hari_ini(pos_id: int, tanggal=None):
+    """Total hujan (mm) pada tanggal rdaily (default hari ini, 00:00 sampai sekarang)."""
+    cur = db.execute_sql(
+        "SELECT source, raw FROM rdaily "
+        "WHERE pos_id = %s AND sampling = COALESCE(%s, CURRENT_DATE)",
+        (pos_id, tanggal),
+    )
+    # max, bukan sum: satu pos satu penakar, jangan dobel kalau ada 2 baris/vendor
+    total = max((_hujan_dari_raw(raw, src) for src, raw in cur.fetchall()), default=0.0)
+    return {"pos_id": pos_id, "hujan_mm": round(total, 1)}

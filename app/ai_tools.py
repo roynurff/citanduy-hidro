@@ -14,16 +14,35 @@ def cari_pos(keyword: str, limit: int = 5):
     return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
-def pos_terputus(jam: int = 6):
-    """Pos yang belum kirim data lebih dari `jam` jam terakhir."""
+def _pembacaan_terakhir_per_pos(hari: int = 7):
+    """{pos_id: waktu pembacaan terakhir} dari rdaily, `hari` hari ke belakang."""
+    cur = db.execute_sql(
+        "SELECT pos_id, raw FROM rdaily "
+        "WHERE pos_id IS NOT NULL AND sampling BETWEEN CURRENT_DATE - %s AND CURRENT_DATE",
+        (hari,),
+    )
+    last = {}
+    for pos_id, raw in cur.fetchall():
+        data = parse_raw(raw)
+        if data and (pos_id not in last or data[-1]["t"] > last[pos_id]):
+            last[pos_id] = data[-1]["t"]
+    return last
+
+
+def pos_terputus(jam: int = 3):
+    """Pos telemetri (punya data 7 hari terakhir) yang belum kirim data > `jam` jam."""
+    last = _pembacaan_terakhir_per_pos()
     batas = datetime.now() - timedelta(hours=jam)
     cur = db.execute_sql(
-        "SELECT id, nama, tipe, latest_up FROM pos "
-        "WHERE latest_up IS NULL OR latest_up < %s ORDER BY latest_up NULLS FIRST",
-        (batas,),
+        "SELECT id, nama, tipe FROM pos WHERE id = ANY(%s) ORDER BY nama",
+        (list(last),),
     )
-    cols = [c[0] for c in cur.description]
-    return [dict(zip(cols, r)) for r in cur.fetchall()]
+    hasil = []
+    for id_, nama, tipe in cur.fetchall():
+        if last[id_] < batas:
+            hasil.append({"id": id_, "nama": nama, "tipe": tipe,
+                          "data_terakhir": last[id_].isoformat()})
+    return hasil
 
 
 import json

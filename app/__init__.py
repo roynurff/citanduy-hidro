@@ -269,7 +269,122 @@ def create_app():
             return jsonify(device_list)
         return render_template('ews.html')
     
+
+    _TMA_CACHE = {'t': 0.0, 'data': None}
+
+    def _tma_snapshot():
+        import time
+        if _TMA_CACHE['data'] is not None and time.time() - _TMA_CACHE['t'] < 60:
+            return _TMA_CACHE['data']
+        now = datetime.datetime.now()
+        items = []
+        for w in get_warning_wlevel(now):
+            pos = w['pos']
+            try:
+                lat, lon = [float(x) for x in pos['latlon'].split(',')]
+                ts = datetime.datetime.fromisoformat(w['sampling'])
+            except (ValueError, TypeError):
+                continue
+            items.append({
+                'id': pos['id'],
+                'nama': pos['nama'],
+                'lat': lat,
+                'lon': lon,
+                'tma_cm': round(w['wlevel'][-1][1], 1),
+                'sampling': w['sampling'],
+                'usia_menit': int((now - ts).total_seconds() // 60),
+                'status': w['status'],
+                'siaga': {'hijau': pos['sh'], 'kuning': pos['sk'], 'merah': pos['sm']},
+            })
+        data = {'generated_at': now.isoformat(timespec='seconds'),
+                'unit': 'cm', 'count': len(items), 'items': items}
+        _TMA_CACHE.update(t=time.time(), data=data)
+        return data
+
+    @app.route('/api/v1/tma')
+    @limiter.limit('30 per minute')
+    def api_tma():
+        import hmac
+        from app.config import TMACH_API_KEY
+        if TMACH_API_KEY and not hmac.compare_digest(
+                request.headers.get('X-API-Key', ''), TMACH_API_KEY):
+            return jsonify({'error': 'unauthorized'}), 401
+        data = _tma_snapshot()
+        pos_id = request.args.get('pos_id', type=int)
+        if pos_id is not None:
+            items = [i for i in data['items'] if i['id'] == pos_id]
+            if not items:
+                return jsonify({'error': 'pos tidak ditemukan'}), 404
+            return jsonify({**data, 'count': 1, 'items': items})
+        return jsonify(data)
     
+    _HUJAN_CACHE = {'t': 0.0, 'data': None}
+
+    def _hujan_snapshot():
+        import time
+        if _HUJAN_CACHE['data'] is not None and time.time() - _HUJAN_CACHE['t'] < 60:
+            return _HUJAN_CACHE['data']
+
+        (_, s, _) = get_sampling(None)
+        sampling_str = s.strftime('%Y-%m-%d')
+
+        now = datetime.datetime.now()
+        jam_ini = now.replace(minute=0, second=0, microsecond=0)
+        jam_lalu = jam_ini - datetime.timedelta(hours=1)
+
+        items = []
+        for r in RDaily.select().where(RDaily.sampling == sampling_str):
+            pos = r.pos
+            if not pos or not pos.ll or pos.tipe not in ('1', '3'):
+                continue
+            rd = r._rain()
+            if not rd:
+                continue
+            hourly = rd.get('hourly') or {}
+            try:
+                lat, lon = [float(x) for x in pos.ll.split(',')]
+                last = json.loads(r.raw)[-1]['sampling']
+                ts = datetime.datetime.fromisoformat(last).replace(tzinfo=None)
+            except (ValueError, KeyError, IndexError, TypeError):
+                continue
+
+            def jam(k):
+                entry = hourly.get(k.isoformat()) or hourly.get(k.strftime('%Y-%m-%d %H:%M:%S')) or {}
+                val = entry.get('rain') if isinstance(entry, dict) else entry
+                return round(float(val or 0), 1)
+
+            items.append({
+                'id': pos.id,
+                'nama': pos.nama,
+                'lat': lat,
+                'lon': lon,
+                'rain24_mm': round(float(rd.get('rain24') or 0), 1),
+                'rain_jam_ini_mm': jam(jam_ini),
+                'rain_jam_lalu_mm': jam(jam_lalu),
+                'sampling': last,
+                'usia_menit': int((now - ts).total_seconds() // 60),
+            })
+
+        data = {
+            'generated_at': now.isoformat(timespec='seconds'),
+            'sampling': sampling_str,
+            'unit': 'mm',
+            'count': len(items),
+            'items': items,
+        }
+        _HUJAN_CACHE.update(t=time.time(), data=data)
+        return data
+
+    @app.route('/api/v1/hujan')
+    @limiter.limit('30 per minute')
+    def api_hujan():
+        import hmac
+        from app.config import TMACH_API_KEY
+        if TMACH_API_KEY and not hmac.compare_digest(
+                request.headers.get('X-API-Key', ''), TMACH_API_KEY):
+            return jsonify({'error': 'unauthorized'}), 401
+        return jsonify(_hujan_snapshot())
+
     @app.route('/ai', methods=['GET', 'POST'])
     def chat():
         if request.method == 'POST':
@@ -792,6 +907,7 @@ def register_bluprint(app):
     from app.note import bp as bp_note
     from app.publikasi import bp as bp_publikasi
     from app.ticket import bp as bp_ticket
+    from app import ai_chat
     
     app.register_blueprint(bp_pch)
     app.register_blueprint(bp_pda)
@@ -811,6 +927,7 @@ def register_bluprint(app):
     app.register_blueprint(bp_note)
     app.register_blueprint(bp_publikasi)
     app.register_blueprint(bp_ticket)
+    app.register_blueprint(ai_chat.bp)
 
     @app.before_request
     def batasi_petugas():

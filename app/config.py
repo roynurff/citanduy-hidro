@@ -21,6 +21,7 @@ BOT_TOKEN = environ.get('BOT_TOKEN')
 CTY_OFFICE_ID = environ.get('CTY_KANTOR_ID')
 KUALITAS_AIR_FOLDER = 'static/ka'
 DEEPSEEK_API = environ.get('DEEPSEEK_API')
+TMACH_API_KEY = environ.get('TMACH_API_KEY')
 
 DATABASE = {
     'engine': 'playhouse.pool.PooledPostgresqlDatabase',

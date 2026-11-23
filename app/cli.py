@@ -435,7 +435,6 @@ def register(app):
             levels[p['nama']] = LV.get(st, 0)
         if should_send('tma', levels):
             send_wa(msg_wa)
-        send_wa(msg_wa)
 
         click.echo(msg)
 

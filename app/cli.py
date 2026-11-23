@@ -5,6 +5,9 @@ from app import get_warning_wlevel
 import click
 import datetime
 import json
+import os, time
+
+STATE_FILE = '/tmp/ews_wa_state.json'
 
 def send_wa(msg: str, target: str = None):
     import requests as req
@@ -21,6 +24,27 @@ def send_wa(msg: str, target: str = None):
     except Exception as e:
         print(f'WA send error: {e}')
         return False
+
+def should_send(kind, levels, remind_min=60):
+    """levels: {nama_pos: level_int}. True kalau ada pos baru, level naik,
+    atau sudah remind_min menit sejak kirim terakhir."""
+    try:
+        with open(STATE_FILE) as f:
+            st = json.load(f)
+    except Exception:
+        st = {}
+    s = st.get(kind, {'t': 0, 'levels': {}})
+    old = s['levels']
+    kirim = any(n not in old or lv > old[n] for n, lv in levels.items())
+    if not kirim and levels and time.time() - s['t'] >= remind_min * 60:
+        kirim = True
+    st[kind] = {'t': time.time() if kirim else s['t'], 'levels': levels}
+    try:
+        with open(STATE_FILE, 'w') as f:
+            json.dump(st, f)
+    except Exception:
+        pass
+    return kirim
 
 def register(app):
     @app.cli.command('send-terlambat-pda7')
@@ -336,6 +360,8 @@ def register(app):
                     click.echo('{} {}'.format(r.nama, len(raw)))
                 click.echo('Hujan: {} Durasi: {}'.format(hujan, durasi))
         msg = ''
+        levels = {d['pos']: (2 if d['rain'] > 20 else 1) for d in rain_list}
+        kirim_wa = should_send('rain', levels)
         if rain_list:
             # Telegram msg (existing)
             msg = '*\[PERINGATAN HUJAN\]*\n*BBWS Citanduy*\n\ndibuat: *{}*\n\n'.format(now.strftime('%d %b %Y jam %H:%M'))
@@ -352,7 +378,8 @@ def register(app):
                 msg_wa += '{}. {}: {:.0f} mm ({} menit)\n'.format(i+1, d['pos'], d['rain'], int(d['duration']/60))
             msg_wa += '\nPeta EWS:\nsihka.bbwscitanduy.id/ews'
             msg_wa += '\n\nAkumulasi hujan harian:\nsihka.bbwscitanduy.id/map/hujan'
-            send_wa(msg_wa)
+            if kirim_wa:
+                send_wa(msg_wa)
 
         click.echo(msg)
 
@@ -360,6 +387,7 @@ def register(app):
     def ews_wlevel(now=datetime.datetime.now()):
         warning_list = [w for w in get_warning_wlevel() if w['status'] != 'normal' and w['pos']['nama'] not in EWS_SKIP_POS]
         if not warning_list:
+            should_send('tma', {})   # bersihkan state
             click.echo('Tidak ada TMA siaga.')
             return
 
@@ -396,6 +424,17 @@ def register(app):
             else:                         status = 'WASPADA'
             msg_wa += '{}. {}: {:.1f} cm ({})\n'.format(i+1, pos['nama'], wlevel, status)
         msg_wa += '\nPeta EWS:\nsihka.bbwscitanduy.id/ews'
+        LV = {'SIAGA HIJAU': 1, 'SIAGA KUNING': 2, 'SIAGA MERAH': 3}
+        levels = {}
+        for item in warning_list:
+            p, wl = item['pos'], item['wlevel'][-1][1]
+            if p.get('sm') and wl >= p['sm']:   st = 'SIAGA MERAH'
+            elif p.get('sk') and wl >= p['sk']: st = 'SIAGA KUNING'
+            elif p.get('sh') and wl >= p['sh']: st = 'SIAGA HIJAU'
+            else:                               st = 'WASPADA'
+            levels[p['nama']] = LV.get(st, 0)
+        if should_send('tma', levels):
+            send_wa(msg_wa)
         send_wa(msg_wa)
 
         click.echo(msg)

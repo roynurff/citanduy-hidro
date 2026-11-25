@@ -26,6 +26,36 @@
     }
     .legend div { display: flex; align-items: center; gap: 6px; }
     .colorbox { width: 14px; height: 14px; border-radius: 3px; }
+
+    .pos-label {
+      background: rgba(255,255,255,.85);
+      border: none;
+      box-shadow: none;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 4px;
+    }
+    .mode-switch {
+      background: white;
+      padding: 4px;
+      border-radius: 8px;
+      box-shadow: 0 1px 5px rgba(0,0,0,.4);
+      display: flex;
+      gap: 4px;
+    }
+    .mode-switch button {
+      border: none;
+      background: #eee;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .mode-switch button.active {
+      background: #0074D9;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -35,13 +65,41 @@
   <script>
     // ===== MAP INIT =====
     const map = L.map('map').setView([-7.3, 108.5], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    const baseStreet = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    });
+
+    const baseSatellite = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri — Maxar, Earthstar Geographics, GIS User Community',
+      maxZoom: 19
+    });
+
+    baseStreet.addTo(map);
 
     // ===== GLOBAL STATE =====
     let rainMin = 0;
     let rainMax = 100;
+
+    let thiessenData = null;
+    let thiessenLayer = null;
+    let stationLookup = {};      // key: nama pos persis dari API
+    let currentMode = 'idw';     // 'idw' | 'thiessen'
+
+    map.createPane('thiessen');
+    map.getPane('thiessen').style.zIndex = 350;
+
+    const THIESSEN_ALIAS = {
+      'PCH Bendung Danasari': 'PCH Danasari',
+      'PCH Tanjungjaya': 'PCH Tanjungjaya Cisaga',
+      'PCH Purwodadi': 'PCH Purwadadi',
+      'PCH Gunung Putri': 'PCH Gn Putri',
+      'PCH Ujungbarang': 'PCH Ujung Barang',
+      'PCH Dayeuhluhur': 'PCH DayeuhLuhur',
+      'PCH Bendung Cijalu': 'PCH Cijalu',
+    };
+    const apiNama = n => THIESSEN_ALIAS[n] || n;
 
     // ===== COLOR FUNCTIONS =====
     function getColor(v) {
@@ -123,12 +181,78 @@
       }
     }
 
+
+    // ===== THIESSEN LAYER =====
+    async function loadThiessen() {
+      try {
+        const resp = await fetch('/static/PolygonThiessenUpdateNov2025.json.geojson');
+        if (!resp.ok) { console.warn('Thiessen geojson tidak ditemukan'); return; }
+        thiessenData = await resp.json();
+      } catch (e) {
+        console.error('Error load thiessen:', e);
+      }
+    }
+
+    function kategoriHarian(mm) {
+      if (mm >= 150) return 'Hujan Ekstrim';
+      if (mm >= 100) return 'Hujan Sangat Lebat';
+      if (mm >= 50)  return 'Hujan Lebat';
+      if (mm >= 20)  return 'Hujan Sedang';
+      if (mm >= 0.5) return 'Hujan Ringan';
+      return 'Tidak Ada Hujan';
+    }
+
+    function renderThiessen() {
+      if (!thiessenData) return;
+
+      const styleFn = feat => {
+        const s = stationLookup[apiNama(feat.properties.Name)];
+        const has = s && s.rainfall >= 0.5;
+        return {
+          color: '#0074D9',
+          weight: 2.5,
+          dashArray: '5,4',
+          fill: !!has,
+          fillColor: has ? getColor(s.rainfall) : '#000',
+          fillOpacity: has ? 0.55 : 0
+        };
+      };
+
+      if (!thiessenLayer) {
+        // Belum di-addTo(map), biar setMode() yang atur
+        thiessenLayer = L.geoJSON(thiessenData, { style: styleFn, pane: 'thiessen' });
+        thiessenLayer.eachLayer(l => l.bindPopup(() => {
+          const nama = apiNama(l.feature.properties.Name);
+          const s = stationLookup[nama];
+          if (!s) return `<b>${nama}</b><br>Tidak ada data`;
+          return `<b>${s.nama}</b><br>
+                  Hujan 24 jam: <b>${s.rainfall.toFixed(1)} mm</b><br>
+                  Kategori: ${kategoriHarian(s.rainfall)}`;
+        }, { autoPan: true }));
+      } else {
+        thiessenLayer.setStyle(styleFn);
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      if (mode === 'idw') {
+        if (thiessenLayer && map.hasLayer(thiessenLayer)) map.removeLayer(thiessenLayer);
+        if (!map.hasLayer(idwLayer)) idwLayer.addTo(map);
+      } else {
+        if (map.hasLayer(idwLayer)) map.removeLayer(idwLayer);
+        if (thiessenLayer && !map.hasLayer(thiessenLayer)) thiessenLayer.addTo(map);
+      }
+      markersLayer.eachLayer(m => m.bringToFront && m.bringToFront());
+    }
+    
+
     // ===== IDW CANVAS LAYER =====
     L.GridLayer.IDW = L.GridLayer.extend({
       options: {
         cellSize: 50,
         power: 2,
-        opacity: 0.6
+        opacity: 0.7
       },
 
       initialize: function(options) {
@@ -258,19 +382,27 @@
 
     function updateMarkers(stations) {
       markersLayer.clearLayers();
-      
       for (const s of stations) {
         L.circleMarker([s.lat, s.lng], {
-          radius: 6,
-          weight: 1,
-          color: '#333',
-          fillColor: getColor(s.rainfall),
-          fillOpacity: 0.9
+          radius: 6, weight: 1, color: '#333',
+          fillColor: getColor(s.rainfall), fillOpacity: 0.9
         })
-        .bindPopup(`<b>Rainfall:</b> ${s.rainfall.toFixed(1)} mm`)
+        .bindPopup(`<b>${s.nama}</b><br><b>Rainfall:</b> ${s.rainfall.toFixed(1)} mm`)
+        .bindTooltip(`${s.nama} (${s.rainfall.toFixed(1)})`, {
+          permanent: true, direction: 'top', offset: [0, -6], className: 'pos-label'
+        })
         .addTo(markersLayer);
       }
+      toggleLabels();
     }
+
+    function toggleLabels() {
+      const show = map.getZoom() >= 11;
+      document.querySelectorAll('.pos-label').forEach(el => {
+        el.style.display = show ? '' : 'none';
+      });
+    }
+    map.on('zoomend', toggleLabels);
 
     function fitBoundsToStations(stations) {
       if (stations.length === 0) return;
@@ -303,13 +435,15 @@
         .map(item => {
           const [lat, lng] = item.pos.latlon.split(',').map(parseFloat);
           const rainfall = parseFloat(item.telemetri?.rain24 ?? 0);
-          
           return {
-            lat: lat,
-            lng: lng,
+            nama: item.pos.nama,
+            lat, lng,
             rainfall: isNaN(rainfall) ? 0 : rainfall
           };
         });
+
+      stationLookup = {};
+      stations.forEach(s => { stationLookup[s.nama] = s; });
 
       if (stations.length > 0) {
         // Update global min/max
@@ -331,6 +465,8 @@
       
       // Update markers
       updateMarkers(stations);
+      renderThiessen();
+      setMode(currentMode); // Ensure correct layer visibility
       
       // Fit bounds on first load
       if (!window._initialBoundsFit && stations.length > 0) {
@@ -361,10 +497,39 @@
       };
       
       legend.addTo(map);
+
+      // Toggle mode IDW / Thiessen (segmented button)
+      const modeCtl = L.control({ position: 'topright' });
+      modeCtl.onAdd = function () {
+        const div = L.DomUtil.create('div', 'mode-switch');
+        div.innerHTML = `
+          <button data-mode="idw" class="active">Interpolasi IDW</button>
+          <button data-mode="thiessen">Poligon Thiessen</button>`;
+        L.DomEvent.disableClickPropagation(div);
+        div.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            div.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            setMode(btn.dataset.mode);
+          });
+        });
+        return div;
+      };
+      modeCtl.addTo(map);
+
+      // Basemap + toggle pos hujan
+      L.control.layers(
+        { 'Jalan': baseStreet, 'Satelit': baseSatellite },
+        { 'Pos Hujan': markersLayer },
+        { position: 'topright', collapsed: true }
+      ).addTo(map);
+
+      map.on('baselayerchange', e => e.layer.bringToBack());
       
       try {
         // Load clip polygon (non-blocking)
         loadClipPolygon();
+        await loadThiessen();
         
         // Fetch and apply rain data
         const rainData = await fetchRainData();
